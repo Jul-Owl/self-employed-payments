@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentLinkStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TransactionStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+enum ReceiptStatus {
+  PENDING
+  ISSUED
+  FAILED
+}
+
+enum LedgerEntryType {
+  CLIENT_PAYMENT_RECEIVED
+  TAX_RESERVED
+  PLATFORM_FEE_RESERVED
+  SELF_EMPLOYED_BALANCE
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+model PaymentLink {
+  id           String            @id @default(cuid())
+  title        String
+  amount       Int
+  payerType    String
+  status       PaymentLinkStatus @default(ACTIVE)
+  createdAt    DateTime          @default(now())
+
+  transactions Transaction[]
+  payments     Payment[]
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+
+  provider          String
+  externalPaymentId String        @unique
+  paymentUrl        String?
+  amount            Int
+  status            PaymentStatus @default(CREATED)
+
+  paymentLinkId     String
+  paymentLink       PaymentLink   @relation(fields: [paymentLinkId], references: [id])
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([provider])
+  @@index([paymentLinkId])
+}
+
+model Transaction {
+  id                String            @id @default(cuid())
+  title             String
+  client            String
+  grossAmount       Int
+  taxAmount         Int
+  platformFeeAmount Int               @default(0)
+  netAmount         Int
+  date              String
+  status            TransactionStatus @default(RECEIVED)
+  createdAt         DateTime          @default(now())
+
+  externalPaymentId String?
+  externalStatus    String?
+
+  paymentLinkId     String?
+  paymentLink       PaymentLink?      @relation(fields: [paymentLinkId], references: [id])
+
+  receipt           Receipt?
+  ledgerEntries     LedgerEntry[]
+
+  @@index([externalPaymentId])
+}
+
+model Receipt {
+  id            String        @id @default(cuid())
+  title         String
+  client        String
+  amount        Int
+  status        ReceiptStatus @default(PENDING)
+  date          String
+  createdAt     DateTime      @default(now())
+
+  transactionId String?       @unique
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id])
+}
+
+model LedgerEntry {
+  id            String          @id @default(cuid())
+
+  transactionId String
+  transaction   Transaction     @relation(fields: [transactionId], references: [id])
+
+  type          LedgerEntryType
+  direction     LedgerDirection
+  amount        Int
+
+  createdAt     DateTime        @default(now())
+}
+
+model WebhookEvent {
+  id                String             @id @default(cuid())
+
+  provider          String
+  eventType         String?
+  externalPaymentId String?
+  idempotencyKey    String?
+
+  status            WebhookEventStatus @default(RECEIVED)
+  payload           Json
+
+  errorMessage      String?
+  processedAt       DateTime?
+  createdAt         DateTime           @default(now())
+
+  @@index([provider])
+  @@index([externalPaymentId])
+  @@unique([provider, idempotencyKey])
+}
