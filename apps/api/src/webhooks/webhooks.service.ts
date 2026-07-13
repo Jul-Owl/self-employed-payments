@@ -1,17 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import {
-  LedgerDirection,
-  LedgerEntryType,
   PaymentStatus,
   ReceiptStatus,
   TransactionStatus,
   WebhookEventStatus,
 } from '@prisma/client';
+import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WebhooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   async handlePaymentWebhook(payload: any) {
     const provider = payload.provider ?? 'test-provider';
@@ -175,34 +177,16 @@ export class WebhooksService {
         },
       });
 
-      await tx.ledgerEntry.createMany({
-        data: [
-          {
-            transactionId: transaction.id,
-            type: LedgerEntryType.CLIENT_PAYMENT_RECEIVED,
-            direction: LedgerDirection.CREDIT,
-            amount: grossAmount,
-          },
-          {
-            transactionId: transaction.id,
-            type: LedgerEntryType.TAX_RESERVED,
-            direction: LedgerDirection.DEBIT,
-            amount: taxAmount,
-          },
-          {
-            transactionId: transaction.id,
-            type: LedgerEntryType.PLATFORM_FEE_RESERVED,
-            direction: LedgerDirection.DEBIT,
-            amount: platformFeeAmount,
-          },
-          {
-            transactionId: transaction.id,
-            type: LedgerEntryType.SELF_EMPLOYED_BALANCE,
-            direction: LedgerDirection.CREDIT,
-            amount: netAmount,
-          },
-        ],
-      });
+      await this.ledgerService.createTransactionEntries(
+        {
+          transactionId: transaction.id,
+          grossAmount,
+          taxAmount,
+          platformFeeAmount,
+          netAmount,
+        },
+        tx,
+      );
 
       const updatedWebhookEvent = await tx.webhookEvent.update({
         where: {

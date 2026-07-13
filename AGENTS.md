@@ -50,14 +50,16 @@ Implemented:
 * simulated payment flow;
 * transactions;
 * receipts;
+* ledger entries (4 entry types per payment);
 * PostgreSQL persistence;
 * Prisma migrations;
-* dashboard based on database data;
-* relations between PaymentLink, Transaction and Receipt;
+* dashboard based on database data (calculates from LedgerEntry);
+* relations between PaymentLink, Transaction, Receipt and LedgerEntry;
 * enum statuses;
 * tax calculation;
 * platform percentage fee;
-* net amount calculation.
+* net amount calculation;
+* atomic payment processing (Transaction + Receipt + LedgerEntry within single Prisma transaction).
 
 Current financial fields:
 
@@ -75,6 +77,8 @@ taxAmount = round(grossAmount * 0.04)
 platformFeeAmount = round(grossAmount * 0.01)
 netAmount = grossAmount - taxAmount - platformFeeAmount
 ```
+
+Note: 1% platform fee is a temporary MVP test rule. The monetization model (PERCENT, SUBSCRIPTION, or HYBRID) will be implemented in the Monetization stage. During SUBSCRIPTION model, platformFeeAmount will be set to 0 for customer payments, with monthly fees passing through a separate money flow to the platform settlement account.
 
 The current `simulate-payment` endpoint temporarily replaces the future bank webhook.
 
@@ -199,7 +203,11 @@ Future entities may include:
 
 ## Universal service model
 
+The next major technical stage is the Universal Service model.
+
 A shared `Service` entity must be introduced before building the booking calendar.
+
+Important: Service does not contain the platform monetization model. Monetization model (ownerId, assignment priorities, platform rules) will be added in the Monetization stage.
 
 Expected fields:
 
@@ -283,33 +291,33 @@ Do not create technical statuses without clear user or operational meaning.
 
 ## Ledger
 
-The next major technical stage is Ledger.
+Status: Completed.
 
-Ledger must become the source of truth for financial balances.
+Ledger is the source of truth for financial balances.
 
-Expected entry types:
+Entry types (all 4 types created atomically per payment):
 
-* customer payment received;
-* tax reserved;
-* platform fee reserved;
-* self-employed balance credited;
-* payout reserved;
-* payout completed;
-* refund;
-* correction.
+* CLIENT_PAYMENT_RECEIVED (CREDIT);
+* TAX_RESERVED (DEBIT);
+* PLATFORM_FEE_RESERVED (DEBIT);
+* SELF_EMPLOYED_BALANCE (CREDIT);
+* (future) payout reserved, payout completed, refund, correction.
 
-A transaction should create ledger records atomically.
-
-Expected payment postings:
+Payment postings per transaction:
 
 ```text
-customer payment received: +grossAmount
-tax reserved: -taxAmount
-platform fee reserved: -platformFeeAmount
-self-employed balance: +netAmount
+CLIENT_PAYMENT_RECEIVED: +grossAmount (CREDIT)
+TAX_RESERVED: -taxAmount (DEBIT)
+PLATFORM_FEE_RESERVED: -platformFeeAmount (DEBIT)
+SELF_EMPLOYED_BALANCE: +netAmount (CREDIT)
 ```
 
-Do not calculate production balances only by summing transaction fields once Ledger exists.
+Atomicity: All four entries created within single Prisma transaction.
+
+Dashboard now calculates financial balances by aggregating LedgerEntry amounts.
+
+Important: Ledger does not determine monetization model. It receives ready-made platformFeeAmount from business logic. 
+The choice between PERCENT, SUBSCRIPTION, and HYBRID will be implemented in the Monetization stage.
 
 ## Bank integration
 
@@ -447,15 +455,14 @@ Instructions must therefore:
 
 ## Current roadmap priority
 
-1. Ledger.
-2. Universal Service model.
-3. Calendar and online booking.
-4. Monetization plans and assignments.
-5. Subscription billing.
-6. User and account layer.
-7. Bank nominal account integration.
-8. Receipts and tax integration.
-9. Payouts.
-10. Admin and operations.
+1. Universal Service model.
+2. Calendar and online booking.
+3. Monetization plans and assignments.
+4. Subscription billing.
+5. User and account layer.
+6. Bank nominal account integration.
+7. Receipts and tax integration.
+8. Payouts.
+9. Admin and operations.
 
 ````

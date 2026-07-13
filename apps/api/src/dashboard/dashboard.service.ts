@@ -1,11 +1,22 @@
 import { Injectable } from '@nestjs/common';
+import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   async getDashboard() {
+    // Get balance aggregates from Ledger (source of truth)
+    const totalAmount = await this.ledgerService.getTotalReceived();
+    const totalTax = await this.ledgerService.getTaxReserve();
+    const totalPlatformFee = await this.ledgerService.getPlatformFeeReserve();
+    const available = await this.ledgerService.getAvailableBalance();
+
+    // Get recent transactions for display
     const transactions = await this.prisma.transaction.findMany({
       orderBy: {
         createdAt: 'desc',
@@ -15,26 +26,6 @@ export class DashboardService {
         receipt: true,
       },
     });
-
-    const totalAmount = transactions.reduce(
-      (sum, item) => sum + item.grossAmount,
-      0,
-    );
-
-    const totalTax = transactions.reduce(
-      (sum, item) => sum + item.taxAmount,
-      0,
-    );
-
-    const totalPlatformFee = transactions.reduce(
-      (sum, item) => sum + item.platformFeeAmount,
-      0,
-    );
-
-    const available = transactions.reduce(
-      (sum, item) => sum + item.netAmount,
-      0,
-    );
 
     const pendingReceipts = transactions.filter(
       (item) => item.receipt?.status === 'PENDING',

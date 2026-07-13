@@ -68,53 +68,60 @@ export class PaymentLinksService {
     const platformFeeAmount = Math.round(grossAmount * 0.01);
     const netAmount = grossAmount - taxAmount - platformFeeAmount;
 
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        title: paymentLink.title,
-        client: 'Тестовый клиент',
-        grossAmount,
-        taxAmount,
-        platformFeeAmount,
-        netAmount,
-        date: 'только что',
-        status: TransactionStatus.PROCESSED,
-        paymentLinkId: paymentLink.id,
-      },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const transaction = await tx.transaction.create({
+        data: {
+          title: paymentLink.title,
+          client: 'Тестовый клиент',
+          grossAmount,
+          taxAmount,
+          platformFeeAmount,
+          netAmount,
+          date: 'только что',
+          status: TransactionStatus.PROCESSED,
+          paymentLinkId: paymentLink.id,
+        },
+      });
+
+      const receipt = await tx.receipt.create({
+        data: {
+          title: paymentLink.title,
+          client: 'Тестовый клиент',
+          amount: grossAmount,
+          status: ReceiptStatus.PENDING,
+          date: 'только что',
+          transactionId: transaction.id,
+        },
+      });
+
+      await this.ledgerService.createTransactionEntries(
+        {
+          transactionId: transaction.id,
+          grossAmount,
+          taxAmount,
+          platformFeeAmount,
+          netAmount,
+        },
+        tx,
+      );
+
+      const ledgerEntries = await tx.ledgerEntry.findMany({
+        where: {
+          transactionId: transaction.id,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      return {
+        paymentLink,
+        transaction,
+        receipt,
+        ledgerEntries,
+      };
     });
 
-    const receipt = await this.prisma.receipt.create({
-      data: {
-        title: paymentLink.title,
-        client: 'Тестовый клиент',
-        amount: grossAmount,
-        status: ReceiptStatus.PENDING,
-        date: 'только что',
-        transactionId: transaction.id,
-      },
-    });
-
-    await this.ledgerService.createTransactionEntries({
-      transactionId: transaction.id,
-      grossAmount,
-      taxAmount,
-      platformFeeAmount,
-      netAmount,
-    });
-
-    const ledgerEntries = await this.prisma.ledgerEntry.findMany({
-      where: {
-        transactionId: transaction.id,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
-
-    return {
-      paymentLink,
-      transaction,
-      receipt,
-      ledgerEntries,
-    };
+    return result;
   }
 }

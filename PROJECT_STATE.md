@@ -1,6 +1,6 @@
 # Project State
 
-Дата актуализации: 2026-07-11
+Дата актуализации: 2026-07-13
 
 ## Текущее состояние
 
@@ -33,6 +33,8 @@ API на NestJS.
 * TransactionsModule;
 * ReceiptsModule;
 * DashboardModule;
+* LedgerModule;
+* WebhooksModule;
 * PrismaModule.
 
 ### Database
@@ -109,12 +111,38 @@ Prisma используется для:
 * ISSUED;
 * FAILED.
 
+### LedgerEntry
+
+Назначение: проводка движения денег.
+
+Поля:
+
+* id;
+* transactionId;
+* type;
+* direction;
+* amount;
+* createdAt.
+
+Типы проводок:
+
+* CLIENT_PAYMENT_RECEIVED;
+* TAX_RESERVED;
+* PLATFORM_FEE_RESERVED;
+* SELF_EMPLOYED_BALANCE.
+
+Направления:
+
+* CREDIT (зачисление);
+* DEBIT (резервирование/списание).
+
 ## Связи
 
 ```text
 PaymentLink
   └── Transaction[]
-        └── Receipt
+        ├── Receipt
+        └── LedgerEntry[] (4 записи)
 ```
 
 ## Денежная модель
@@ -131,7 +159,11 @@ grossAmount
 Текущие тестовые правила:
 
 * налог: 4%;
-* комиссия платформы: 1%.
+* комиссия платформы: 1% (временное правило MVP).
+
+Модель монетизации (PERCENT, SUBSCRIPTION, HYBRID) будет определена на этапе Monetization.
+При модели SUBSCRIPTION платформа установит platformFeeAmount=0 для клиентских платежей, 
+а ежемесячная плата будет проходить отдельным денежным контуром на расчётный счёт платформы.
 
 ## Что уже работает
 
@@ -139,10 +171,11 @@ grossAmount
 * сохранение ссылки в PostgreSQL;
 * просмотр списка и деталей;
 * имитация оплаты;
-* создание Transaction;
-* создание Receipt;
+* создание Transaction, Receipt и 4 LedgerEntry атомарно;
 * связи между сущностями;
-* Dashboard из БД;
+* Ledger как источник истины для финансовых показателей;
+* Dashboard рассчитывает баланс через агрегацию LedgerEntry;
+* simulate-payment и payment.succeeded (webhook) являются атомарными операциями;
 * отображение налога, комиссии и суммы к выводу;
 * frontend получает данные через backend API.
 
@@ -203,4 +236,4 @@ grossAmount
 
 ## Следующий технический этап
 
-Добавление LedgerEntry и полноценной модели денежных проводок.
+Добавление универсальной модели Service.
