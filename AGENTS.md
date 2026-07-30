@@ -203,25 +203,33 @@ Future entities may include:
 
 ## Universal service model
 
-The next major technical stage is the Universal Service model.
+The next major technical stage is the Catalog model.
 
-A shared `Service` entity must be introduced before building the booking calendar.
+A shared `CatalogItem` entity must be introduced before building the booking calendar.
 
-Important: Service does not contain the platform monetization model. Monetization model (ownerId, assignment priorities, platform rules) will be added in the Monetization stage.
+**Full architecture:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
+
+### Two types of CatalogItem
+
+- **SERVICE** — service that can participate in online booking and calendar
+- **PRODUCT** — product that does not participate in calendar
+
+Important: CatalogItem does not contain the platform monetization model. Monetization model (ownerId, assignment priorities, platform rules) will be added in the Monetization stage.
 
 Expected fields:
 
 * id;
-* ownerId;
+* ownerId (will be added in Users stage);
 * title;
 * description;
+* type (SERVICE | PRODUCT);
 * price;
-* durationMinutes;
+* durationMinutes (for SERVICE only);
 * category;
 * isActive;
-* isBookable;
-* bufferBeforeMinutes;
-* bufferAfterMinutes;
+* isBookable (for SERVICE only);
+* bufferBeforeMinutes (for SERVICE only);
+* bufferAfterMinutes (for SERVICE only);
 * paymentPolicy;
 * prepaymentValue;
 * createdAt;
@@ -234,7 +242,7 @@ Payment policies:
 * `PERCENT_PREPAYMENT`;
 * `FULL_PREPAYMENT`.
 
-Payment links and bookings should eventually reference `Service`.
+Payment links and bookings should eventually reference `CatalogItem`.
 
 ## Calendar and booking
 

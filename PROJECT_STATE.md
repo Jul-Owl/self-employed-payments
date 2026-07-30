@@ -236,4 +236,6 @@ grossAmount
 
 ## Следующий технический этап
 
-Добавление универсальной модели Service.
+Добавление архитектуры CatalogItem.
+
+**Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)

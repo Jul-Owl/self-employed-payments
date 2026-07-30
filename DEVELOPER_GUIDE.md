@@ -11,6 +11,7 @@
 - PROJECT_STATE.md
 - ROADMAP.md
 - AGENTS.md
+- docs/architecture/CATALOG_ARCHITECTURE.md (если работа связана с каталогом услуг/товаров)
 
 2. Понять текущий этап Roadmap.
 
