@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CatalogModule } from './catalog/catalog.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { PaymentLinksModule } from './payment-links/payment-links.module';
@@ -13,6 +14,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 @Module({
   imports: [
     PrismaModule,
+    CatalogModule,
     PaymentLinksModule,
     PaymentsModule,
     TransactionsModule,

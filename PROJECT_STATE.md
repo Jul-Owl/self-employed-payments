@@ -22,6 +22,7 @@
 * детали операции;
 * список чеков;
 * детали чека.
+* каталог товаров и услуг.
 
 ### Backend
 
@@ -35,6 +36,7 @@ API на NestJS.
 * DashboardModule;
 * LedgerModule;
 * WebhooksModule;
+* CatalogModule;
 * PrismaModule.
 
 ### Database
@@ -137,6 +139,21 @@ Prisma используется для:
 * CREDIT (зачисление);
 * DEBIT (резервирование/списание).
 
+### CatalogItem
+
+Назначение: изменяемый шаблон товара или услуги для будущих продаж и
+бронирований. Не является продажей, бронированием или финансовой операцией.
+
+Реализовано:
+
+* типы SERVICE и PRODUCT;
+* типовые цена, описание и категория;
+* параметры SERVICE: длительность, буферы, доступность для записи и
+  предоплата;
+* единица измерения PRODUCT;
+* мягкая архивация через isActive;
+* CRUD API `/catalog`.
+
 ## Связи
 
 ```text
@@ -180,6 +197,7 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 * simulate-payment и payment.succeeded (webhook) являются атомарными операциями;
 * отображение налога, комиссии и суммы к выводу;
 * frontend получает данные через backend API.
+* создание, редактирование и архивирование CatalogItem через API и frontend.
 
 ## Что пока является симуляцией
 
@@ -238,7 +256,7 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 ## Следующий технический этап
 
-Добавление архитектуры CatalogItem.
+Calendar and Booking.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
 

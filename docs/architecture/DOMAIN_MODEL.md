@@ -39,7 +39,7 @@
 
 | Область | Источник истины |
 | --- | --- |
-| Catalog | CatalogItem после его реализации; отдельная сущность Catalog отсутствует. |
+| Catalog | CatalogItem; отдельная сущность Catalog отсутствует. |
 | Payments | Transaction для факта оплаты; PaymentLink — предложение оплатить. |
 | Finance | LedgerEntry для остатков и финансовых агрегаций. |
 | Receipts | Receipt для состояния чека. |
@@ -55,7 +55,7 @@
 
 ## Карта доменных областей
 
-### Catalog — логическая область (DESIGNED)
+### Catalog — логическая область (IMPLEMENTED)
 
 **Назначение:** типовые параметры товаров и услуг для будущих коммерческих
 сценариев. Catalog — логическая совокупность CatalogItem, а не отдельная
@@ -138,7 +138,7 @@ CatalogItem отсутствует.
 
 ## Основные сущности
 
-### CatalogItem — DESIGNED
+### CatalogItem — IMPLEMENTED
 
 Шаблон товара или услуги с типовыми параметрами. Не является фактом продажи.
 При создании исторических документов используется snapshot. На текущем этапе
@@ -310,7 +310,7 @@ CatalogItem
 | Financial Accounting | LedgerEntry | IMPLEMENTED | [Ledger audit](../ledger/LEDGER_AUDIT_VERIFIED.md) |
 | Receipts | Receipt | IMPLEMENTED | [PROJECT_STATE.md](../../PROJECT_STATE.md) |
 | Integration | WebhookEvent | IMPLEMENTED | Prisma schema и [ROADMAP.md](../../ROADMAP.md) |
-| Catalog | CatalogItem | DESIGNED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
+| Catalog | CatalogItem | IMPLEMENTED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
 | Calendar and Booking | Calendar / Booking | PLANNED | [ROADMAP.md](../../ROADMAP.md) |
 | Calendar and Booking | BookingItem | PLANNED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
 | Users and Ownership | User | DEFERRED | [ROADMAP.md](../../ROADMAP.md) |

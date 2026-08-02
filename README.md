@@ -70,8 +70,10 @@ npx pnpm --filter api start:dev
 Backend работает по адресу:
 
 ```text
-http://localhost:3001
+http://localhost:3002
 ```
+
+При отсутствии `PORT` в `apps/api/.env` backend использует порт `3001`.
 
 ### Frontend
 
@@ -84,6 +86,24 @@ Frontend работает по адресу:
 ```text
 http://localhost:3000
 ```
+
+## Локальная настройка окружения
+
+Файл локальной конфигурации API находится в `apps/api/.env`. Шаблон
+`apps/api/.env.example` показывает необходимые переменные без настоящих
+учётных данных.
+
+Минимально используются:
+
+- `DATABASE_URL` — строка подключения к PostgreSQL;
+- `PORT` — порт API, локально задан `3002`;
+- `WEB_URL` — URL frontend для CORS, локально задан `http://localhost:3000`.
+- `NEXT_PUBLIC_API_URL` — URL API для frontend в `apps/web/.env.local`;
+  локально задан `http://localhost:3002`.
+
+Чтобы изменить порт API, измените `PORT` в `apps/api/.env`; чтобы изменить
+адрес frontend, измените `WEB_URL` в том же файле. После этого перезапустите
+API. После изменения `apps/web/.env.local` перезапустите frontend.
 
 ## Основные API endpoints
 

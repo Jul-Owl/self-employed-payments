@@ -1,4 +1,79 @@
-export const API_BASE_URL = "http://localhost:3001";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+export type CatalogItemType = "SERVICE" | "PRODUCT";
+export type CatalogItemUnit = "PIECE" | "HOUR" | "MINUTE" | "DAY" | "SET";
+export type CatalogItemPaymentPolicy =
+  | "NO_PREPAYMENT"
+  | "FIXED_PREPAYMENT"
+  | "PERCENT_PREPAYMENT"
+  | "FULL_PREPAYMENT";
+
+export type CatalogItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  type: CatalogItemType;
+  isActive: boolean;
+  isBookable: boolean;
+  price: number | null;
+  durationMinutes: number | null;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  unit: CatalogItemUnit | null;
+  paymentPolicy: CatalogItemPaymentPolicy | null;
+  prepaymentValue: number | null;
+  category: string | null;
+};
+
+export type CatalogItemPayload = Omit<CatalogItem, "id">;
+
+async function catalogRequest<T>(path: string, options?: RequestInit) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : body?.message;
+
+    throw new Error(message || "Не удалось выполнить операцию с каталогом");
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export function fetchCatalogItems() {
+  return catalogRequest<CatalogItem[]>("/catalog", {
+    cache: "no-store",
+  });
+}
+
+export function createCatalogItem(payload: CatalogItemPayload) {
+  return catalogRequest<CatalogItem>("/catalog", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCatalogItem(id: string, payload: Partial<CatalogItemPayload>) {
+  return catalogRequest<CatalogItem>(`/catalog/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function archiveCatalogItem(id: string) {
+  return catalogRequest<CatalogItem>(`/catalog/${id}`, {
+    method: "DELETE",
+  });
+}
 
 export async function fetchPaymentLinks() {
   const response = await fetch(`${API_BASE_URL}/payment-links`, {

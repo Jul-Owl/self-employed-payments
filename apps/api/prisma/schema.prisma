@@ -48,6 +48,45 @@ enum PaymentStatus {
   FAILED
 }
 
+enum CatalogItemType {
+  SERVICE
+  PRODUCT
+}
+
+enum CatalogItemUnit {
+  PIECE
+  HOUR
+  MINUTE
+  DAY
+  SET
+}
+
+enum CatalogItemPaymentPolicy {
+  NO_PREPAYMENT
+  FIXED_PREPAYMENT
+  PERCENT_PREPAYMENT
+  FULL_PREPAYMENT
+}
+
+model CatalogItem {
+  id                  String                   @id @default(cuid())
+  title               String
+  description         String?
+  type                CatalogItemType
+  isActive            Boolean                  @default(true)
+  isBookable          Boolean                  @default(true)
+  price               Int?
+  durationMinutes     Int?
+  bufferBeforeMinutes Int                      @default(0)
+  bufferAfterMinutes  Int                      @default(0)
+  unit                CatalogItemUnit?
+  paymentPolicy       CatalogItemPaymentPolicy?
+  prepaymentValue     Int?
+  category            String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+}
+
 model PaymentLink {
   id           String            @id @default(cuid())
   title        String

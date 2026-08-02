@@ -60,6 +60,7 @@ Implemented:
 * platform percentage fee;
 * net amount calculation;
 * atomic payment processing (Transaction + Receipt + LedgerEntry within single Prisma transaction).
+* CatalogItem CRUD with soft archiving.
 
 Current financial fields:
 
@@ -205,7 +206,7 @@ Future entities may include:
 
 ## Catalog model
 
-The next major technical stage is the Catalog model.
+The Catalog model is implemented for the current single-user MVP.
 
 A shared `CatalogItem` entity must be introduced before building the booking calendar.
 

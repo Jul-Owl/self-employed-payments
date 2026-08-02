@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen p-4" />}>
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}
+
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
 
   const title = searchParams.get("title") ?? "Новая ссылка";
