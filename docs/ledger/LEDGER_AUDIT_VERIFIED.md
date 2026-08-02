@@ -1,5 +1,11 @@
 # Ledger Audit — Verified Facts & Code Review
 
+> **Исторический контекст:** этот audit отражает состояние до завершения
+> Ledger. Замечания об неатомарном `simulate-payment`, прямом создании
+> проводок в webhook и расчёте Dashboard по Transaction были реализованы
+> позднее. Актуальный результат исправлений описан в
+> [LEDGER_IMPLEMENTATION_REPORT.md](./LEDGER_IMPLEMENTATION_REPORT.md).
+
 ## 1. Prisma Model LedgerEntry — Exact Definition
 
 **File:** `apps/api/prisma/schema.prisma` (lines 109–122)

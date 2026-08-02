@@ -78,7 +78,7 @@ platformFeeAmount = round(grossAmount * 0.01)
 netAmount = grossAmount - taxAmount - platformFeeAmount
 ```
 
-Note: 1% platform fee is a temporary MVP test rule. The monetization model (PERCENT, SUBSCRIPTION, or HYBRID) will be implemented in the Monetization stage. During SUBSCRIPTION model, platformFeeAmount will be set to 0 for customer payments, with monthly fees passing through a separate money flow to the platform settlement account.
+Note: 1% platform fee is a temporary MVP test rule. The base monetization models, Commission (PERCENT) and Subscription, will be implemented in the Monetization stage; HYBRID is their combination. During Subscription, platformFeeAmount will be set to 0 for customer payments, with monthly fees passing through a separate money flow to the platform settlement account.
 
 The current `simulate-payment` endpoint temporarily replaces the future bank webhook.
 
@@ -135,27 +135,29 @@ Subscription payments must not be mixed with customer payments or nominal-accoun
 
 ## Monetization
 
-The platform must support:
+The platform must support two base monetization models:
 
-* `PERCENT`;
-* `SUBSCRIPTION`;
-* `HYBRID`.
+* Commission (`PERCENT`);
+* Subscription.
 
-### PERCENT
+Hybrid is a combination of Commission and Subscription, not a separate base
+model.
+
+### Commission (`PERCENT`)
 
 The platform receives a percentage of each customer payment.
 
 The commission is separated from the customer payment through the nominal account.
 
-### SUBSCRIPTION
+### Subscription
 
 The self-employed user pays a fixed monthly fee directly to the platform settlement account.
 
 Customer payments still pass through the nominal account.
 
-### HYBRID
+### Hybrid
 
-The user pays both:
+Hybrid combines both:
 
 * a fixed monthly fee;
 * a percentage of customer payments.
@@ -201,7 +203,7 @@ Future entities may include:
 * SubscriptionPayment;
 * BillingAccount.
 
-## Universal service model
+## Catalog model
 
 The next major technical stage is the Catalog model.
 
@@ -214,7 +216,9 @@ A shared `CatalogItem` entity must be introduced before building the booking cal
 - **SERVICE** — service that can participate in online booking and calendar
 - **PRODUCT** — product that does not participate in calendar
 
-Important: CatalogItem does not contain the platform monetization model. Monetization model (ownerId, assignment priorities, platform rules) will be added in the Monetization stage.
+Important: CatalogItem does not contain the platform monetization model. Monetization assignment priorities and platform rules will be added in the Monetization stage. ownerId must not be introduced before the Users stage.
+
+**Domain map:** [docs/architecture/DOMAIN_MODEL.md](./docs/architecture/DOMAIN_MODEL.md)
 
 Expected fields:
 
@@ -286,6 +290,7 @@ Prepayment is optional and configured per service.
 
 * `RECEIVED`
 * `PROCESSED`
+* `FAILED`
 
 ### ReceiptStatus
 
@@ -324,8 +329,10 @@ Atomicity: All four entries created within single Prisma transaction.
 
 Dashboard now calculates financial balances by aggregating LedgerEntry amounts.
 
-Important: Ledger does not determine monetization model. It receives ready-made platformFeeAmount from business logic. 
-The choice between PERCENT, SUBSCRIPTION, and HYBRID will be implemented in the Monetization stage.
+Important: Ledger does not determine monetization model. It receives ready-made
+platformFeeAmount from business logic. The base Commission and Subscription
+models, including their Hybrid combination, will be implemented in the
+Monetization stage.
 
 ## Bank integration
 
@@ -463,7 +470,7 @@ Instructions must therefore:
 
 ## Current roadmap priority
 
-1. Universal Service model.
+1. Catalog (CatalogItem).
 2. Calendar and online booking.
 3. Monetization plans and assignments.
 4. Subscription billing.

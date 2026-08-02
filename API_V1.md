@@ -1,5 +1,9 @@
 # API v1
 
+> **Статус:** целевая спецификация API v1. Она не описывает фактически
+> реализованные endpoints; актуальное состояние зафиксировано в
+> [PROJECT_STATE.md](./PROJECT_STATE.md).
+
 ## Auth
 
 POST /v1/auth/request-code  

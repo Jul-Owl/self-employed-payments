@@ -89,6 +89,7 @@ Prisma используется для:
 
 * RECEIVED;
 * PROCESSED.
+* FAILED.
 
 ### Receipt
 
@@ -161,8 +162,9 @@ grossAmount
 * налог: 4%;
 * комиссия платформы: 1% (временное правило MVP).
 
-Модель монетизации (PERCENT, SUBSCRIPTION, HYBRID) будет определена на этапе Monetization.
-При модели SUBSCRIPTION платформа установит platformFeeAmount=0 для клиентских платежей, 
+Модель монетизации будет определена на этапе Monetization. Базовые модели —
+Commission (PERCENT) и Subscription; Hybrid является их комбинацией.
+При модели Subscription платформа установит platformFeeAmount=0 для клиентских платежей,
 а ежемесячная плата будет проходить отдельным денежным контуром на расчётный счёт платформы.
 
 ## Что уже работает
@@ -212,9 +214,9 @@ grossAmount
 
 Планируется поддержка:
 
-* процентной комиссии;
-* фиксированного ежемесячного тарифа;
-* гибридного тарифа.
+* Commission — процентной комиссии;
+* Subscription — фиксированного ежемесячного тарифа;
+* Hybrid как комбинации Commission и Subscription.
 
 Тариф должен назначаться:
 
@@ -239,3 +241,5 @@ grossAmount
 Добавление архитектуры CatalogItem.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
+
+**Карта предметной области:** [docs/architecture/DOMAIN_MODEL.md](./docs/architecture/DOMAIN_MODEL.md)

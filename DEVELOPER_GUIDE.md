@@ -11,6 +11,7 @@
 - PROJECT_STATE.md
 - ROADMAP.md
 - AGENTS.md
+- docs/architecture/DOMAIN_MODEL.md
 - docs/architecture/CATALOG_ARCHITECTURE.md (если работа связана с каталогом услуг/товаров)
 
 2. Понять текущий этап Roadmap.
@@ -169,7 +170,7 @@ Ledger является единственным источником истин
 
 1. Ledger
 
-2. Universal Service
+2. Catalog (CatalogItem)
 
 3. Calendar
 
