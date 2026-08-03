@@ -75,6 +75,116 @@ export function archiveCatalogItem(id: string) {
   });
 }
 
+export type DayOfWeek =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
+export type WeeklyWorkingHours = {
+  id: string;
+  dayOfWeek: DayOfWeek;
+  isWorking: boolean;
+  startMinutes: number | null;
+  endMinutes: number | null;
+};
+
+export type CalendarDateOverrideType = "CLOSED" | "OPEN";
+
+export type CalendarDateOverride = {
+  id: string;
+  date: string;
+  type: CalendarDateOverrideType;
+  startMinutes: number | null;
+  endMinutes: number | null;
+  reason: string | null;
+};
+
+export type CalendarDayResolution = {
+  date: string;
+  isWorking: boolean;
+  startMinutes: number | null;
+  endMinutes: number | null;
+  resolvedBy: "OVERRIDE" | "OFFICIAL_CALENDAR" | "WEEKLY_SCHEDULE";
+  resolvedRule:
+    | "OPEN"
+    | "CLOSED"
+    | "HOLIDAY"
+    | "WORKING_DAY"
+    | "WEEKLY_WORKING"
+    | "WEEKLY_CLOSED";
+};
+
+export type WeeklyWorkingHoursPayload = {
+  isWorking: boolean;
+  startMinutes?: number;
+  endMinutes?: number;
+};
+
+export type CalendarDateOverridePayload = {
+  date: string;
+  type: CalendarDateOverrideType;
+  startMinutes?: number;
+  endMinutes?: number;
+  reason?: string | null;
+};
+
+export function fetchWeeklyWorkingHours() {
+  return catalogRequest<WeeklyWorkingHours[]>("/calendar/weekly", {
+    cache: "no-store",
+  });
+}
+
+export function upsertWeeklyWorkingHours(
+  dayOfWeek: DayOfWeek,
+  payload: WeeklyWorkingHoursPayload,
+) {
+  return catalogRequest<WeeklyWorkingHours>(`/calendar/weekly/${dayOfWeek}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchCalendarDateOverrides() {
+  return catalogRequest<CalendarDateOverride[]>("/calendar/overrides", {
+    cache: "no-store",
+  });
+}
+
+export function createCalendarDateOverride(
+  payload: CalendarDateOverridePayload,
+) {
+  return catalogRequest<CalendarDateOverride>("/calendar/overrides", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCalendarDateOverride(
+  id: string,
+  payload: Partial<CalendarDateOverridePayload>,
+) {
+  return catalogRequest<CalendarDateOverride>(`/calendar/overrides/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCalendarDateOverride(id: string) {
+  return catalogRequest<CalendarDateOverride>(`/calendar/overrides/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function resolveCalendarDay(date: string) {
+  return catalogRequest<CalendarDayResolution>(`/calendar/day/${date}`, {
+    cache: "no-store",
+  });
+}
+
 export async function fetchPaymentLinks() {
   const response = await fetch(`${API_BASE_URL}/payment-links`, {
     cache: "no-store",

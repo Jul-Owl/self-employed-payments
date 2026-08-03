@@ -27,10 +27,10 @@
 
 | Категория | Сущности |
 | --- | --- |
-| Template | CatalogItem. |
+| Template | CatalogItem, WeeklyWorkingHours, CalendarDateOverride. |
 | Document | PaymentLink, Receipt, будущие Booking, PaymentLinkItem и BookingItem. |
 | Fact | Transaction, LedgerEntry. |
-| System | Payment, WebhookEvent, будущие User и назначение правил монетизации. |
+| System | Payment, WebhookEvent, OfficialCalendarDay, будущие User и назначение правил монетизации. |
 
 Классификация описывает доменную роль, а не Prisma-модели. Calendar остаётся
 концептуальной предметной областью, а не отдельной сущностью или таблицей.
@@ -43,7 +43,7 @@
 | Payments | Transaction для факта оплаты; PaymentLink — предложение оплатить. |
 | Finance | LedgerEntry для остатков и финансовых агрегаций. |
 | Receipts | Receipt для состояния чека. |
-| Calendar | Концептуальная область до проектирования модели Calendar. |
+| Calendar | WeeklyWorkingHours, OfficialCalendarDay и CalendarDateOverride; отдельная сущность Calendar отсутствует. |
 | Booking | Будущий Booking после проектирования этапа Calendar and Booking. |
 
 ## Контекст продукта
@@ -95,12 +95,17 @@
 **Подробности:** [PROJECT_STATE.md](../../PROJECT_STATE.md),
 [ROADMAP.md](../../ROADMAP.md).
 
-### Calendar and Booking — PLANNED
+### Calendar and Booking — IMPLEMENTED / PLANNED
 
-**Назначение:** управление доступностью времени и конкретными визитами
-клиентов.
+**Назначение:** управление доступностью времени и будущими конкретными
+визитами клиентов.
 
-**Основные сущности:** Calendar, Booking, предполагаемая модель BookingItem.
+**Реализовано:** WeeklyWorkingHours, OfficialCalendarDay и
+CalendarDateOverride определяют рабочий интервал конкретной даты с
+приоритетом ручного правила над государственным календарём и недельным
+графиком.
+
+**Отложено:** Booking и предполагаемая модель BookingItem.
 
 **Подробности:** [ROADMAP.md](../../ROADMAP.md),
 [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md).
@@ -178,11 +183,30 @@ PaymentLink. Его состояние не заменяет Transaction как 
 Состояние формирования чека по Transaction. Receipt не является финансовым
 источником истины.
 
-### Calendar — концептуальная область (PLANNED)
+### Calendar — концептуальная область (IMPLEMENTED)
 
 Правила доступности времени: рабочие часы, исключения, выходные и ручные
-переопределения. Детальная модель Calendar будет определена на этапе Calendar
-and Booking.
+переопределения. Calendar не является отдельной таблицей: доступность
+определяется WeeklyWorkingHours, OfficialCalendarDay и
+CalendarDateOverride.
+
+Calendar не рассчитывает слоты и не использует параметры CatalogItem.
+
+### WeeklyWorkingHours — IMPLEMENTED
+
+Базовое рабочее время одного дня недели. Одна запись допускается для каждого
+dayOfWeek.
+
+### OfficialCalendarDay — IMPLEMENTED
+
+Государственное правило конкретной даты: HOLIDAY закрывает дату, а WORKING_DAY
+отменяет только государственное закрытие и передаёт разрешение недельному
+графику.
+
+### CalendarDateOverride — IMPLEMENTED
+
+Ручное правило конкретной даты. CLOSED закрывает дату, OPEN задаёт её
+единственный рабочий интервал. Правило имеет наивысший приоритет.
 
 ### Booking — PLANNED
 
@@ -216,7 +240,7 @@ Calendar and Booking.
 ```mermaid
 flowchart TD
   User["User (DEFERRED)"] --> Catalog["CatalogItem (DESIGNED)"]
-  User --> CalendarArea["Calendar: conceptual area (PLANNED)"]
+  User --> CalendarArea["Calendar availability (IMPLEMENTED)"]
   User --> Booking["Booking (PLANNED)"]
   User --> Monetization["Monetization settings (PLANNED)"]
   Catalog -. "целевое направление" .-> PaymentLink["PaymentLink (IMPLEMENTED)"]
@@ -311,7 +335,8 @@ CatalogItem
 | Receipts | Receipt | IMPLEMENTED | [PROJECT_STATE.md](../../PROJECT_STATE.md) |
 | Integration | WebhookEvent | IMPLEMENTED | Prisma schema и [ROADMAP.md](../../ROADMAP.md) |
 | Catalog | CatalogItem | IMPLEMENTED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
-| Calendar and Booking | Calendar / Booking | PLANNED | [ROADMAP.md](../../ROADMAP.md) |
+| Calendar and Booking | WeeklyWorkingHours / OfficialCalendarDay / CalendarDateOverride | IMPLEMENTED | [PROJECT_STATE.md](../../PROJECT_STATE.md) |
+| Calendar and Booking | Booking | PLANNED | [ROADMAP.md](../../ROADMAP.md) |
 | Calendar and Booking | BookingItem | PLANNED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
 | Users and Ownership | User | DEFERRED | [ROADMAP.md](../../ROADMAP.md) |
 | Monetization | Rules assignment | PLANNED | [ROADMAP.md](../../ROADMAP.md) |

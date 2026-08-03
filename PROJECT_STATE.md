@@ -37,6 +37,7 @@ API на NestJS.
 * LedgerModule;
 * WebhooksModule;
 * CatalogModule;
+* CalendarModule;
 * PrismaModule.
 
 ### Database
@@ -154,6 +155,20 @@ Prisma используется для:
 * мягкая архивация через isActive;
 * CRUD API `/catalog`.
 
+### Calendar availability
+
+Calendar остаётся концептуальной областью; отдельной сущности Calendar нет.
+
+Реализовано:
+
+* базовый недельный график через WeeklyWorkingHours;
+* государственные правила конкретной даты через OfficialCalendarDay;
+* ручные переопределения даты через CalendarDateOverride;
+* разрешение доступности даты с приоритетом:
+  override > official calendar > weekly schedule.
+
+Booking, расчёт слотов и связь с CatalogItem не реализованы.
+
 ## Связи
 
 ```text
@@ -198,6 +213,8 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 * отображение налога, комиссии и суммы к выводу;
 * frontend получает данные через backend API.
 * создание, редактирование и архивирование CatalogItem через API и frontend.
+* API управления недельным графиком, государственными правилами и ручными
+  переопределениями Calendar.
 
 ## Что пока является симуляцией
 
@@ -256,7 +273,7 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 ## Следующий технический этап
 
-Calendar and Booking.
+Booking.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
 

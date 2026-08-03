@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const items = [
   { href: "/dashboard", label: "Главная" },
   { href: "/catalog", label: "Каталог" },
+  { href: "/calendar", label: "Календарь" },
   { href: "/payments", label: "Платежи" },
   { href: "/transactions", label: "Операции" },
   { href: "/receipts", label: "Чеки" },
@@ -17,7 +18,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white">
-      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-6">
+      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-7">
         {items.map((item) => {
           const isActive = pathname.startsWith(item.href);
 
@@ -25,7 +26,7 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-center text-center text-xs ${
+              className={`flex items-center justify-center text-center text-[10px] leading-tight ${
                 isActive ? "font-semibold text-slate-900" : "text-slate-500"
               }`}
             >

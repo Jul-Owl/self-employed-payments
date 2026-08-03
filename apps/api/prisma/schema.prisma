@@ -68,6 +68,55 @@ enum CatalogItemPaymentPolicy {
   FULL_PREPAYMENT
 }
 
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum OfficialCalendarDayType {
+  HOLIDAY
+  WORKING_DAY
+}
+
+enum CalendarDateOverrideType {
+  CLOSED
+  OPEN
+}
+
+model WeeklyWorkingHours {
+  id           String    @id @default(cuid())
+  dayOfWeek    DayOfWeek @unique
+  isWorking    Boolean
+  startMinutes Int?
+  endMinutes   Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model OfficialCalendarDay {
+  id        String                  @id @default(cuid())
+  date      DateTime                @db.Date @unique
+  type      OfficialCalendarDayType
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+}
+
+model CalendarDateOverride {
+  id           String                   @id @default(cuid())
+  date         DateTime                 @db.Date @unique
+  type         CalendarDateOverrideType
+  startMinutes Int?
+  endMinutes   Int?
+  reason       String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+}
+
 model CatalogItem {
   id                  String                   @id @default(cuid())
   title               String

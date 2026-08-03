@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CalendarModule } from './calendar/calendar.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { LedgerModule } from './ledger/ledger.module';
@@ -14,6 +15,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 @Module({
   imports: [
     PrismaModule,
+    CalendarModule,
     CatalogModule,
     PaymentLinksModule,
     PaymentsModule,
