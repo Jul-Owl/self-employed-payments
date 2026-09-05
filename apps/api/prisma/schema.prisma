@@ -88,6 +88,17 @@ enum CalendarDateOverrideType {
   OPEN
 }
 
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingItemType {
+  SERVICE
+  PRODUCT
+}
+
 model WeeklyWorkingHours {
   id           String    @id @default(cuid())
   dayOfWeek    DayOfWeek @unique
@@ -134,6 +145,56 @@ model CatalogItem {
   category            String?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
+
+  bookingItems        BookingItem[]
+}
+
+model Booking {
+  id                   String        @id @default(cuid())
+  bookingDate          DateTime      @db.Date
+  startMinutes         Int
+  serviceEndMinutes    Int
+  reservedStartMinutes Int
+  reservedEndMinutes   Int
+  status               BookingStatus @default(CONFIRMED)
+  totalAmount          Int
+  customerName         String
+  customerPhone        String?
+  customerEmail        String?
+  comment              String?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  items BookingItem[]
+
+  @@index([status])
+  @@index([bookingDate, status, reservedStartMinutes, reservedEndMinutes])
+}
+
+model BookingItem {
+  id                  String          @id @default(cuid())
+  bookingId           String
+  position            Int
+  catalogItemId       String
+  type                BookingItemType
+  title               String
+  description         String?
+  unitPrice           Int
+  quantity            Int
+  lineTotalAmount     Int
+  unit                CatalogItemUnit?
+  durationMinutes     Int?
+  bufferBeforeMinutes Int?
+  bufferAfterMinutes  Int?
+  createdAt           DateTime        @default(now())
+
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@index([catalogItemId])
 }
 
 model PaymentLink {

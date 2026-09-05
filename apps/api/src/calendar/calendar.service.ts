@@ -191,12 +191,26 @@ export class CalendarService {
   }
 
   async resolveDay(dateValue: string) {
+    return this.resolveDayForClient(this.prisma, dateValue);
+  }
+
+  async resolveDayInTransaction(
+    tx: Prisma.TransactionClient,
+    dateValue: string,
+  ) {
+    return this.resolveDayForClient(tx, dateValue);
+  }
+
+  private async resolveDayForClient(
+    client: Prisma.TransactionClient | PrismaService,
+    dateValue: string,
+  ) {
     const date = parseCalendarDate(dateValue);
     const [override, officialCalendarDay, weeklyWorkingHours] =
       await Promise.all([
-        this.prisma.calendarDateOverride.findUnique({ where: { date } }),
-        this.prisma.officialCalendarDay.findUnique({ where: { date } }),
-        this.prisma.weeklyWorkingHours.findUnique({
+        client.calendarDateOverride.findUnique({ where: { date } }),
+        client.officialCalendarDay.findUnique({ where: { date } }),
+        client.weeklyWorkingHours.findUnique({
           where: { dayOfWeek: this.dayOfWeekForDate(date) },
         }),
       ]);
