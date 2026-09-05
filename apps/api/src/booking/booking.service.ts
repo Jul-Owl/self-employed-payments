@@ -17,6 +17,7 @@ import {
   parseCalendarDate,
 } from '../calendar/calendar-date.helper';
 import { PrismaService } from '../prisma/prisma.service';
+import { calculateBookingIntervals } from './booking-interval.helper';
 import { CreateBookingDto, CreateBookingItemDto } from './dto/create-booking.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -34,12 +35,6 @@ interface BookingItemSnapshot {
   durationMinutes: number | null;
   bufferBeforeMinutes: number | null;
   bufferAfterMinutes: number | null;
-}
-
-interface BookingIntervals {
-  serviceEndMinutes: number;
-  reservedStartMinutes: number;
-  reservedEndMinutes: number;
 }
 
 @Injectable()
@@ -81,7 +76,7 @@ export class BookingService {
     const booking = await this.withSerializableRetry(async (tx) => {
       const bookingDate = parseCalendarDate(dto.bookingDate);
       const snapshots = await this.createSnapshots(tx, dto.items);
-      const intervals = this.calculateIntervals(dto.startMinutes, snapshots);
+      const intervals = calculateBookingIntervals(dto.startMinutes, snapshots);
 
       await this.validateCalendarInterval(
         tx,
@@ -136,7 +131,7 @@ export class BookingService {
       }
 
       const bookingDate = parseCalendarDate(dto.bookingDate);
-      const intervals = this.calculateIntervals(dto.startMinutes, booking.items);
+      const intervals = calculateBookingIntervals(dto.startMinutes, booking.items);
 
       await this.validateCalendarInterval(
         tx,
@@ -313,69 +308,6 @@ export class BookingService {
     };
   }
 
-  private calculateIntervals(
-    startMinutes: number,
-    items: Array<
-      Pick<
-        BookingItemSnapshot,
-        | 'type'
-        | 'position'
-        | 'durationMinutes'
-        | 'bufferBeforeMinutes'
-        | 'bufferAfterMinutes'
-      >
-    >,
-  ): BookingIntervals {
-    const serviceItems = items
-      .filter((item) => item.type === BookingItemType.SERVICE)
-      .sort((left, right) => left.position - right.position);
-
-    if (serviceItems.length === 0) {
-      throw new BadRequestException(
-        'Booking must contain at least one SERVICE item',
-      );
-    }
-
-    const durations = serviceItems.map((item) =>
-      this.requirePositiveSnapshotValue(item.durationMinutes),
-    );
-    serviceItems.forEach((item) => {
-      this.requireNonNegativeSnapshotValue(item.bufferBeforeMinutes);
-      this.requireNonNegativeSnapshotValue(item.bufferAfterMinutes);
-    });
-    const serviceEndMinutes =
-      startMinutes + durations.reduce((total, duration) => total + duration, 0);
-    const reservedStartMinutes =
-      startMinutes -
-      this.requireNonNegativeSnapshotValue(
-        serviceItems[0].bufferBeforeMinutes,
-      );
-    const reservedEndMinutes =
-      serviceEndMinutes +
-      this.requireNonNegativeSnapshotValue(
-        serviceItems[serviceItems.length - 1].bufferAfterMinutes,
-      );
-
-    if (
-      startMinutes < 0 ||
-      startMinutes > 1439 ||
-      serviceEndMinutes > 1439 ||
-      reservedStartMinutes < 0 ||
-      reservedEndMinutes > 1439 ||
-      reservedStartMinutes >= reservedEndMinutes
-    ) {
-      throw new BadRequestException(
-        'Booking interval is outside the supported Calendar minute range',
-      );
-    }
-
-    return {
-      serviceEndMinutes,
-      reservedStartMinutes,
-      reservedEndMinutes,
-    };
-  }
-
   private async validateCalendarInterval(
     tx: Prisma.TransactionClient,
     bookingDate: string,
@@ -437,22 +369,6 @@ export class BookingService {
     const normalized = value?.trim();
 
     return normalized ? normalized : null;
-  }
-
-  private requirePositiveSnapshotValue(value: number | null) {
-    if (value === null || value <= 0) {
-      throw new BadRequestException('Booking SERVICE snapshots are invalid');
-    }
-
-    return value;
-  }
-
-  private requireNonNegativeSnapshotValue(value: number | null) {
-    if (value === null || value < 0) {
-      throw new BadRequestException('Booking SERVICE snapshots are invalid');
-    }
-
-    return value;
   }
 
   private async withSerializableRetry<T>(

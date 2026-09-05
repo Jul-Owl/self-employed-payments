@@ -1,6 +1,6 @@
 # Project State
 
-Дата актуализации: 2026-07-13
+Дата актуализации: 2026-09-05
 
 ## Текущее состояние
 
@@ -38,6 +38,8 @@ API на NestJS.
 * WebhooksModule;
 * CatalogModule;
 * CalendarModule;
+* BookingModule;
+* AvailabilityModule;
 * PrismaModule.
 
 ### Database
@@ -167,7 +169,25 @@ Calendar остаётся концептуальной областью; отд�
 * разрешение доступности даты с приоритетом:
   override > official calendar > weekly schedule.
 
-Booking, расчёт слотов и связь с CatalogItem не реализованы.
+### Booking
+
+Реализовано:
+
+* создание, просмотр, перенос, отмена и завершение записи;
+* snapshot позиций CatalogItem в BookingItem;
+* последовательный расчёт нескольких SERVICE с буферами только первой и
+  последней услуги;
+* проверка пересечений с подтверждёнными записями.
+
+### Availability Core
+
+Реализовано:
+
+* вычисляемый endpoint `GET /availability`;
+* слоты не хранятся в БД, а рассчитываются по Calendar, активным CatalogItem и
+  CONFIRMED Booking;
+* PRODUCT не влияет на длительность и зарезервированный интервал;
+* Calendar остаётся источником истины для рабочего дня и его overrides.
 
 ## Связи
 
@@ -273,7 +293,7 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 ## Следующий технический этап
 
-Booking.
+Public Online Booking.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
 
