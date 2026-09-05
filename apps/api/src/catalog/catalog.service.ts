@@ -37,6 +37,28 @@ export class CatalogService {
     });
   }
 
+  findBookableServices() {
+    return this.prisma.catalogItem.findMany({
+      where: {
+        type: CatalogItemType.SERVICE,
+        isActive: true,
+        isBookable: true,
+        price: { not: null },
+        durationMinutes: { gt: 0 },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        price: true,
+        durationMinutes: true,
+        paymentPolicy: true,
+        prepaymentValue: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findOne(id: string) {
     const catalogItem = await this.prisma.catalogItem.findUnique({
       where: { id },

@@ -104,8 +104,8 @@
 
 ## Этап 5. Календарь и онлайн-запись
 
-Статус: Calendar MVP, Booking Core и Availability Core выполнены. Следующий
-подэтап — Public Online Booking.
+Статус: Calendar MVP, Booking Core, Availability Core и Public Online Booking
+выполнены. Следующий подэтап — Calendar / Booking Management UI.
 
 ### 5.1 Управление графиком
 
@@ -138,12 +138,12 @@
 
 Остаётся:
 
-* публичная ссылка;
-* выбор услуги;
-* выбор даты;
-* выбор времени;
-* ввод контактов;
-* подтверждение записи.
+* UI управления записями и календарём для владельца;
+* будущий business-specific public URL после добавления ownership/public profile.
+
+Текущий `/book` — временный single-business public route MVP. Availability
+вычисляется и не хранится в БД, а Booking Core остаётся финальной защитой от
+пересечений. Исполнение предоплаты и платежи не подключены.
 
 ### 5.3 Управление записью
 

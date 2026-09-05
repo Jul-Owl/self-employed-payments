@@ -33,6 +33,17 @@ POST /v1/public/payment-links/:token/intents
 
 ---
 
+## Public Booking
+
+GET /catalog/bookable
+GET /availability?date=YYYY-MM-DD&catalogItemIds=id1&catalogItemIds=id2&stepMinutes=15
+POST /bookings
+
+В текущем MVP публичная страница использует временный single-business route
+`/book`. Платежи и исполнение предоплаты для Booking не подключены.
+
+---
+
 ## Transactions
 
 GET /v1/transactions  

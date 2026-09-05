@@ -29,6 +29,11 @@ export class CatalogController {
     return this.catalogService.findAll();
   }
 
+  @Get('bookable')
+  findBookableServices() {
+    return this.catalogService.findBookableServices();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.catalogService.findOne(id);

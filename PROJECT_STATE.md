@@ -23,6 +23,7 @@
 * список чеков;
 * детали чека.
 * каталог товаров и услуг.
+* публичная страница онлайн-записи `/book`.
 
 ### Backend
 
@@ -189,6 +190,20 @@ Calendar остаётся концептуальной областью; отд�
 * PRODUCT не влияет на длительность и зарезервированный интервал;
 * Calendar остаётся источником истины для рабочего дня и его overrides.
 
+### Public Online Booking
+
+Реализовано:
+
+* временный single-business public route `/book`;
+* выбор одной или нескольких bookable SERVICE с сохранением порядка выбора;
+* загрузка вычисляемой Availability и создание Booking через существующие API;
+* обработка конфликтов занятых слотов с повторной загрузкой Availability;
+* success state с фактическими данными созданной Booking.
+
+`/book` является временным single-business public route MVP. После появления
+ownership и public profile маршрут эволюционирует в business-specific public
+booking URL. Исполнение предоплаты и платежи пока не подключены.
+
 ## Связи
 
 ```text
@@ -293,7 +308,8 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 ## Следующий технический этап
 
-Public Online Booking.
+Calendar / Booking Management UI. Денежный следующий этап для Booking —
+T-Bank и связь Booking ↔ Payment после получения integration requirements.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
 

@@ -28,6 +28,65 @@ export type CatalogItem = {
 
 export type CatalogItemPayload = Omit<CatalogItem, "id">;
 
+export type PublicBookableService = Pick<
+  CatalogItem,
+  | "id"
+  | "title"
+  | "description"
+  | "price"
+  | "durationMinutes"
+  | "paymentPolicy"
+  | "prepaymentValue"
+>;
+
+export type AvailabilitySlot = {
+  startMinutes: number;
+  serviceEndMinutes: number;
+  reservedStartMinutes: number;
+  reservedEndMinutes: number;
+};
+
+export type Availability = {
+  date: string;
+  durationMinutes: number;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  slots: AvailabilitySlot[];
+};
+
+export type CreateBookingPayload = {
+  bookingDate: string;
+  startMinutes: number;
+  items: Array<{ catalogItemId: string; quantity: number }>;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  comment?: string;
+};
+
+export type Booking = {
+  id: string;
+  bookingDate: string;
+  startMinutes: number;
+  totalAmount: number;
+  customerName: string;
+  items: Array<{
+    id: string;
+    title: string;
+    quantity: number;
+    lineTotalAmount: number;
+  }>;
+};
+
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function catalogRequest<T>(path: string, options?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -53,6 +112,55 @@ export function fetchCatalogItems() {
   return catalogRequest<CatalogItem[]>("/catalog", {
     cache: "no-store",
   });
+}
+
+export function fetchBookableServices() {
+  return catalogRequest<PublicBookableService[]>("/catalog/bookable", {
+    cache: "no-store",
+  });
+}
+
+export async function fetchAvailability(
+  date: string,
+  catalogItemIds: string[],
+) {
+  const searchParams = new URLSearchParams({ date, stepMinutes: "15" });
+  catalogItemIds.forEach((id) => searchParams.append("catalogItemIds", id));
+
+  return bookingRequest<Availability>(`/availability?${searchParams.toString()}`, {
+    cache: "no-store",
+  });
+}
+
+export function createBooking(payload: CreateBookingPayload) {
+  return bookingRequest<Booking>("/bookings", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function bookingRequest<T>(path: string, options?: RequestInit) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    ...options,
+  });
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : body?.message;
+
+    throw new ApiRequestError(
+      message || "Не удалось выполнить запрос",
+      response.status,
+    );
+  }
+
+  return body as T;
 }
 
 export function createCatalogItem(payload: CatalogItemPayload) {

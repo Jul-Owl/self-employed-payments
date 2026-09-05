@@ -121,6 +121,32 @@ describe('CatalogService', () => {
     });
   });
 
+  it('returns only active bookable SERVICE items for public booking', async () => {
+    catalogItem.findMany.mockResolvedValue([]);
+
+    await service.findBookableServices();
+
+    expect(catalogItem.findMany).toHaveBeenCalledWith({
+      where: {
+        type: CatalogItemType.SERVICE,
+        isActive: true,
+        isBookable: true,
+        price: { not: null },
+        durationMinutes: { gt: 0 },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        price: true,
+        durationMinutes: true,
+        paymentPolicy: true,
+        prepaymentValue: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
   it('preserves PRODUCT invariants on PATCH', async () => {
     catalogItem.findUnique.mockResolvedValue({
       id: 'catalog-item-id',
