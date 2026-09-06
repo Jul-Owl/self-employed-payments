@@ -7,6 +7,7 @@ const items = [
   { href: "/dashboard", label: "Главная" },
   { href: "/catalog", label: "Каталог" },
   { href: "/calendar", label: "Календарь" },
+  { href: "/bookings", label: "Записи" },
   { href: "/payments", label: "Платежи" },
   { href: "/transactions", label: "Операции" },
   { href: "/receipts", label: "Чеки" },
@@ -18,7 +19,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white">
-      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-7">
+      <div className="mx-auto grid h-16 w-full max-w-md grid-cols-8">
         {items.map((item) => {
           const isActive = pathname.startsWith(item.href);
 

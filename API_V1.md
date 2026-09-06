@@ -38,6 +38,12 @@ POST /v1/public/payment-links/:token/intents
 GET /catalog/bookable
 GET /availability?date=YYYY-MM-DD&catalogItemIds=id1&catalogItemIds=id2&stepMinutes=15
 POST /bookings
+GET /bookings?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+GET /bookings/:id
+GET /bookings/:id/availability?date=YYYY-MM-DD&stepMinutes=15
+PATCH /bookings/:id/reschedule
+PATCH /bookings/:id/cancel
+PATCH /bookings/:id/complete
 
 В текущем MVP публичная страница использует временный single-business route
 `/book`. Платежи и исполнение предоплаты для Booking не подключены.

@@ -48,9 +48,13 @@
 /dashboard/receipts
 /dashboard/payouts
 /dashboard/settings
+/bookings
+/bookings/new
+/bookings/[id]
 
 ### Public
 /pay/[token]
+/book
 
 ### Admin
 /admin

@@ -105,7 +105,8 @@
 ## Этап 5. Календарь и онлайн-запись
 
 Статус: Calendar MVP, Booking Core, Availability Core и Public Online Booking
-выполнены. Следующий подэтап — Calendar / Booking Management UI.
+выполнены. Calendar / Booking Management UI также выполнен. Следующий
+подэтап — Notifications / Pilot UX hardening.
 
 ### 5.1 Управление графиком
 
@@ -138,7 +139,6 @@
 
 Остаётся:
 
-* UI управления записями и календарём для владельца;
 * будущий business-specific public URL после добавления ownership/public profile.
 
 Текущий `/book` — временный single-business public route MVP. Availability
@@ -147,11 +147,16 @@
 
 ### 5.3 Управление записью
 
-* подтверждение;
-* перенос;
-* отмена;
-* комментарий;
-* история изменений.
+Реализовано:
+
+* owner routes `/bookings`, `/bookings/new` и `/bookings/:id`;
+* ручное создание, перенос, отмена и завершение записи;
+* snapshot-based Availability при переносе.
+
+Остаётся:
+
+* история изменений;
+* notifications и Pilot UX hardening.
 
 ### 5.4 Оплата записи
 

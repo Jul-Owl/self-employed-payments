@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ApiRequestError,
   Availability,
@@ -44,7 +45,8 @@ function prepaymentLabel(service: PublicBookableService) {
   return null;
 }
 
-export default function PublicBookingPage() {
+export default function PublicBookingPage({ owner = false }: { owner?: boolean }) {
+  const router = useRouter();
   const [services, setServices] = useState<PublicBookableService[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [date, setDate] = useState("");
@@ -141,8 +143,7 @@ export default function PublicBookingPage() {
     try {
       setSubmitting(true);
       setBookingError("");
-      setBooking(
-        await createBooking({
+      const createdBooking = await createBooking({
           bookingDate: date,
           startMinutes: selectedStartMinutes,
           items: selectedServiceIds.map((catalogItemId) => ({
@@ -153,8 +154,12 @@ export default function PublicBookingPage() {
           customerPhone: customerPhone.trim() || undefined,
           customerEmail: customerEmail.trim() || undefined,
           comment: comment.trim() || undefined,
-        }),
-      );
+      });
+      if (owner) {
+        router.push(`/bookings/${createdBooking.id}`);
+        return;
+      }
+      setBooking(createdBooking);
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 409) {
         setSelectedStartMinutes(null);
@@ -186,7 +191,7 @@ export default function PublicBookingPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <section className="mx-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <p className="text-sm font-medium text-emerald-700">Запись подтверждена</p>
+          <p className="text-sm font-medium text-emerald-700">{owner ? "Запись создана" : "Запись подтверждена"}</p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">
             Ждём вас {booking.bookingDate} в {formatTime(booking.startMinutes)}
           </h1>
@@ -213,9 +218,9 @@ export default function PublicBookingPage() {
     <main className="min-h-screen bg-slate-100 px-4 py-6">
       <div className="mx-auto w-full max-w-md">
         <header className="mb-6">
-          <p className="text-sm text-slate-500">Онлайн-запись</p>
+          <p className="text-sm text-slate-500">{owner ? "Записи" : "Онлайн-запись"}</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-900">
-            Выберите удобное время
+            {owner ? "Новая запись" : "Выберите удобное время"}
           </h1>
         </header>
 
@@ -264,7 +269,7 @@ export default function PublicBookingPage() {
         </section>
 
         <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <h2 className="font-semibold text-slate-900">2. Выберите дату</h2>
+          <h2 className="font-semibold text-slate-900">{owner ? "2. Дата" : "2. Выберите дату"}</h2>
           <input
             type="date"
             min={new Date().toISOString().slice(0, 10)}
@@ -276,7 +281,7 @@ export default function PublicBookingPage() {
 
         {selectedServiceIds.length > 0 && date && (
           <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <h2 className="font-semibold text-slate-900">3. Выберите время</h2>
+            <h2 className="font-semibold text-slate-900">{owner ? "3. Свободное время" : "3. Выберите время"}</h2>
             {availabilityLoading && (
               <p className="mt-3 text-sm text-slate-600">Ищем свободное время…</p>
             )}
@@ -316,8 +321,8 @@ export default function PublicBookingPage() {
 
         {selectedStartMinutes !== null && (
           <form onSubmit={submitBooking} className="mt-4 space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <h2 className="font-semibold text-slate-900">4. Ваши данные</h2>
-            <input required value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Ваше имя" className="input" />
+            <h2 className="font-semibold text-slate-900">{owner ? "4. Клиент" : "4. Ваши данные"}</h2>
+            <input required value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={owner ? "Имя клиента" : "Ваше имя"} className="input" />
             <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Телефон" className="input" />
             <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="input" />
             <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Комментарий (необязательно)" className="input min-h-20" />
@@ -339,7 +344,7 @@ export default function PublicBookingPage() {
 
             {bookingError && <p className="text-sm text-rose-600">{bookingError}</p>}
             <button type="submit" disabled={submitting} className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">
-              {submitting ? "Подтверждаем…" : "Подтвердить запись"}
+              {submitting ? (owner ? "Создаём…" : "Подтверждаем…") : owner ? "Создать запись" : "Подтвердить запись"}
             </button>
           </form>
         )}

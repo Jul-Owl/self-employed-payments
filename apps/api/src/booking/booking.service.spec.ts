@@ -28,6 +28,7 @@ describe('BookingService', () => {
     booking,
   } as unknown as PrismaService;
   const calendarService = {
+    resolveDay: jest.fn(),
     resolveDayInTransaction: jest.fn(),
   } as unknown as CalendarService;
   const service = new BookingService(prisma, calendarService);
@@ -116,12 +117,74 @@ describe('BookingService', () => {
       }),
       include: { items: true },
     });
+
     expect(prisma.$transaction).toHaveBeenCalledWith(
       expect.any(Function),
       expect.objectContaining({
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       }),
     );
+  });
+
+  it('uses an inclusive date range with status filtering and chronological order', async () => {
+    booking.findMany.mockResolvedValue([]);
+    await service.findAll({
+      dateFrom: '2026-08-10',
+      dateTo: '2026-08-12',
+      status: BookingStatus.CONFIRMED,
+    });
+    expect(booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          bookingDate: {
+            gte: new Date('2026-08-10T00:00:00.000Z'),
+            lte: new Date('2026-08-12T00:00:00.000Z'),
+          },
+          status: BookingStatus.CONFIRMED,
+        },
+        orderBy: [{ bookingDate: 'asc' }, { startMinutes: 'asc' }],
+      }),
+    );
+  });
+
+  it('rejects an inverted Booking date range', async () => {
+    await expect(
+      service.findAll({ dateFrom: '2026-08-12', dateTo: '2026-08-10' }),
+    ).rejects.toThrow('dateFrom must be before or equal to dateTo');
+  });
+
+  it('calculates reschedule availability from BookingItem snapshots', async () => {
+    booking.findUnique.mockResolvedValue({
+      id: 'booking-id',
+      status: BookingStatus.CONFIRMED,
+      items: [
+        {
+          type: BookingItemType.SERVICE,
+          position: 0,
+          durationMinutes: 60,
+          bufferBeforeMinutes: 10,
+          bufferAfterMinutes: 15,
+        },
+      ],
+    });
+    booking.findMany.mockResolvedValue([]);
+    calendarService.resolveDay.mockResolvedValue({
+      date: '2026-08-11',
+      isWorking: true,
+      startMinutes: 540,
+      endMinutes: 720,
+    });
+
+    await expect(
+      service.getRescheduleAvailability('booking-id', {
+        date: '2026-08-11',
+        stepMinutes: 60,
+      }),
+    ).resolves.toMatchObject({
+      durationMinutes: 60,
+      slots: [expect.objectContaining({ startMinutes: 600 })],
+    });
+    expect(catalogItem.findMany).not.toHaveBeenCalled();
   });
 
   it('creates a Booking with an additional PRODUCT', async () => {

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { GetRescheduleAvailabilityDto } from './dto/get-reschedule-availability.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 
@@ -28,6 +29,14 @@ export class BookingController {
   @Get()
   findAll(@Query() dto: ListBookingsDto) {
     return this.bookingService.findAll(dto);
+  }
+
+  @Get(':id/availability')
+  getRescheduleAvailability(
+    @Param('id') id: string,
+    @Query() dto: GetRescheduleAvailabilityDto,
+  ) {
+    return this.bookingService.getRescheduleAvailability(id, dto);
   }
 
   @Get(':id')

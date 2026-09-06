@@ -17,9 +17,14 @@ import {
   parseCalendarDate,
 } from '../calendar/calendar-date.helper';
 import { PrismaService } from '../prisma/prisma.service';
-import { calculateBookingIntervals } from './booking-interval.helper';
+import {
+  BookingIntervals,
+  calculateBookingIntervals,
+  getBookingIntervalRequirements,
+} from './booking-interval.helper';
 import { CreateBookingDto, CreateBookingItemDto } from './dto/create-booking.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
+import { GetRescheduleAvailabilityDto } from './dto/get-reschedule-availability.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 
 interface BookingItemSnapshot {
@@ -45,9 +50,24 @@ export class BookingService {
   ) {}
 
   async findAll(dto: ListBookingsDto) {
+    if (dto.date && (dto.dateFrom || dto.dateTo)) {
+      throw new BadRequestException('date cannot be combined with dateFrom or dateTo');
+    }
+
+    const dateFrom = dto.dateFrom ? parseCalendarDate(dto.dateFrom) : undefined;
+    const dateTo = dto.dateTo ? parseCalendarDate(dto.dateTo) : undefined;
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      throw new BadRequestException('dateFrom must be before or equal to dateTo');
+    }
+
     const bookings = await this.prisma.booking.findMany({
       where: {
-        bookingDate: dto.date ? parseCalendarDate(dto.date) : undefined,
+        bookingDate: dto.date
+          ? parseCalendarDate(dto.date)
+          : dateFrom || dateTo
+            ? { gte: dateFrom, lte: dateTo }
+            : undefined,
         status: dto.status,
       },
       include: { items: true },
@@ -55,6 +75,73 @@ export class BookingService {
     });
 
     return bookings.map((booking) => this.serializeBooking(booking));
+  }
+
+  async getRescheduleAvailability(
+    id: string,
+    dto: GetRescheduleAvailabilityDto,
+  ) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+
+    if (!booking) {
+      throw new NotFoundException(`Booking with id "${id}" was not found`);
+    }
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      throw new ConflictException('Only confirmed bookings can be rescheduled');
+    }
+
+    const [resolution, conflicts] = await Promise.all([
+      this.calendarService.resolveDay(dto.date),
+      this.prisma.booking.findMany({
+        where: {
+          bookingDate: parseCalendarDate(dto.date),
+          status: BookingStatus.CONFIRMED,
+          id: { not: id },
+        },
+        select: {
+          reservedStartMinutes: true,
+          reservedEndMinutes: true,
+        },
+      }),
+    ]);
+    const requirements = getBookingIntervalRequirements(booking.items);
+    const slots: Array<BookingIntervals & { startMinutes: number }> = [];
+
+    if (
+      resolution.isWorking &&
+      resolution.startMinutes !== null &&
+      resolution.endMinutes !== null
+    ) {
+      for (
+        let startMinutes = resolution.startMinutes;
+        startMinutes < resolution.endMinutes;
+        startMinutes += dto.stepMinutes
+      ) {
+        if (
+          startMinutes - requirements.bufferBeforeMinutes < resolution.startMinutes ||
+          startMinutes + requirements.durationMinutes + requirements.bufferAfterMinutes >
+            resolution.endMinutes
+        ) {
+          continue;
+        }
+
+        const intervals = calculateBookingIntervals(startMinutes, booking.items);
+        if (
+          !conflicts.some(
+            (conflict) =>
+              conflict.reservedStartMinutes < intervals.reservedEndMinutes &&
+              conflict.reservedEndMinutes > intervals.reservedStartMinutes,
+          )
+        ) {
+          slots.push({ startMinutes, ...intervals });
+        }
+      }
+    }
+
+    return { date: resolution.date, ...requirements, slots };
   }
 
   async findOne(id: string) {

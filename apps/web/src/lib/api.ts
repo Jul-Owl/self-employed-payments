@@ -70,6 +70,11 @@ export type Booking = {
   startMinutes: number;
   totalAmount: number;
   customerName: string;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  comment?: string | null;
+  status: "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  serviceEndMinutes: number;
   items: Array<{
     id: string;
     title: string;
@@ -137,6 +142,47 @@ export function createBooking(payload: CreateBookingPayload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function fetchBookings(params?: {
+  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const query = new URLSearchParams(
+    Object.entries(params ?? {}).filter(([, value]) => value !== undefined) as [
+      string,
+      string,
+    ][],
+  );
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return bookingRequest<Booking[]>(`/bookings${suffix}`, { cache: "no-store" });
+}
+
+export function fetchBooking(id: string) {
+  return bookingRequest<Booking>(`/bookings/${id}`, { cache: "no-store" });
+}
+
+export function rescheduleBooking(id: string, bookingDate: string, startMinutes: number) {
+  return bookingRequest<Booking>(`/bookings/${id}/reschedule`, {
+    method: "PATCH",
+    body: JSON.stringify({ bookingDate, startMinutes }),
+  });
+}
+
+export function cancelBooking(id: string) {
+  return bookingRequest<Booking>(`/bookings/${id}/cancel`, { method: "PATCH" });
+}
+
+export function completeBooking(id: string) {
+  return bookingRequest<Booking>(`/bookings/${id}/complete`, { method: "PATCH" });
+}
+
+export function fetchRescheduleAvailability(id: string, date: string) {
+  return bookingRequest<Availability>(
+    `/bookings/${id}/availability?${new URLSearchParams({ date, stepMinutes: "15" }).toString()}`,
+    { cache: "no-store" },
+  );
 }
 
 async function bookingRequest<T>(path: string, options?: RequestInit) {

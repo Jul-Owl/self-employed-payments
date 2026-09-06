@@ -24,6 +24,7 @@
 * детали чека.
 * каталог товаров и услуг.
 * публичная страница онлайн-записи `/book`.
+* owner-экраны управления записями `/bookings`.
 
 ### Backend
 
@@ -204,6 +205,17 @@ Calendar остаётся концептуальной областью; отд�
 ownership и public profile маршрут эволюционирует в business-specific public
 booking URL. Исполнение предоплаты и платежи пока не подключены.
 
+### Calendar / Booking Management UI
+
+Реализовано:
+
+* список записей владельца по выбранной дате и детали `/bookings/:id`;
+* создание ручной записи, перенос, отмена и завершение через Booking Core;
+* перенос использует BookingItem snapshots, а не текущие CatalogItem;
+* `GET /bookings` поддерживает date range для календарных представлений.
+
+Payment lifecycle по-прежнему не связан с Booking.
+
 ## Связи
 
 ```text
@@ -308,7 +320,7 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 ## Следующий технический этап
 
-Calendar / Booking Management UI. Денежный следующий этап для Booking —
+Notifications / Pilot UX hardening. Денежный следующий этап для Booking —
 T-Bank и связь Booking ↔ Payment после получения integration requirements.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
