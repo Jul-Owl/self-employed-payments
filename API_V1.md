@@ -47,6 +47,15 @@ PATCH /bookings/:id/reschedule
 PATCH /bookings/:id/cancel
 PATCH /bookings/:id/complete
 
+## Notifications
+
+GET /notifications
+GET /notifications/:id
+
+Notifications are owner-scoped and can be filtered by booking and delivery
+state. They are created by the Booking lifecycle and cannot be created from
+the frontend.
+
 Owner endpoints требуют session-cookie. Публичная страница использует
 `/book/:slug`; платежи и исполнение предоплаты для Booking не подключены.
 

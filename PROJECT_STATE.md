@@ -14,6 +14,15 @@
 PaymentLink и Transaction изолированы по `ownerId`. Public booking использует
 `/book/[publicSlug]`; slug определяет бизнес, а не передаётся как ownerId.
 
+## Booking notifications
+
+Booking lifecycle creates owner-scoped EMAIL notification snapshots. A local
+provider records delivery without contacting an external service. Confirmation,
+cancellation and reschedule notifications are created for a stored customer
+email; a reminder is scheduled 24 hours before the appointment and is skipped
+when that time has already passed. Pending reminders are cancelled on
+reschedule, cancellation and completion.
+
 ## Архитектура
 
 ### Frontend

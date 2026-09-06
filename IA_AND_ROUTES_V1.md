@@ -51,6 +51,7 @@
 /bookings
 /bookings/new
 /bookings/[id]
+/notifications
 
 ### Public
 /pay/[token]

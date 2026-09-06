@@ -7,6 +7,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { CalendarService } from '../calendar/calendar.service';
+import { NotificationService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingService } from './booking.service';
 
@@ -31,16 +32,30 @@ describe('BookingService', () => {
     resolveDay: jest.fn(),
     resolveDayInTransaction: jest.fn(),
   } as unknown as CalendarService;
-  const service = new BookingService(prisma, calendarService);
+  const notificationService = {
+    createForBookingCreated: jest.fn(),
+    createForBookingRescheduled: jest.fn(),
+    createForBookingCancelled: jest.fn(),
+    cancelForBookingCompleted: jest.fn(),
+  } as unknown as NotificationService;
+  const service = new BookingService(
+    prisma,
+    calendarService,
+    notificationService,
+  );
   const OWNER_ID = 'owner-id';
   const create = (dto: Parameters<BookingService['create']>[0]) =>
     service.create(dto, OWNER_ID);
   const findAll = (dto: Parameters<BookingService['findAll']>[0]) =>
     service.findAll(dto, OWNER_ID);
-  const getRescheduleAvailability = (id: string, dto: Parameters<BookingService['getRescheduleAvailability']>[1]) =>
-    service.getRescheduleAvailability(id, dto, OWNER_ID);
-  const reschedule = (id: string, dto: Parameters<BookingService['reschedule']>[1]) =>
-    service.reschedule(id, dto, OWNER_ID);
+  const getRescheduleAvailability = (
+    id: string,
+    dto: Parameters<BookingService['getRescheduleAvailability']>[1],
+  ) => service.getRescheduleAvailability(id, dto, OWNER_ID);
+  const reschedule = (
+    id: string,
+    dto: Parameters<BookingService['reschedule']>[1],
+  ) => service.reschedule(id, dto, OWNER_ID);
   const complete = (id: string) => service.complete(id, OWNER_ID);
 
   const serviceCatalogItem = {
@@ -402,9 +417,7 @@ describe('BookingService', () => {
       status: BookingStatus.CANCELLED,
     });
 
-    await expect(complete('booking-id')).rejects.toThrow(
-      ConflictException,
-    );
+    await expect(complete('booking-id')).rejects.toThrow(ConflictException);
   });
 
   it('allows confirmed Bookings with adjacent reserved intervals', async () => {
@@ -415,10 +428,8 @@ describe('BookingService', () => {
     };
     booking.findFirst.mockImplementation(({ where }) => {
       const overlaps =
-        existingBooking.reservedStartMinutes <
-          where.reservedEndMinutes.lt &&
-        existingBooking.reservedEndMinutes >
-          where.reservedStartMinutes.gt;
+        existingBooking.reservedStartMinutes < where.reservedEndMinutes.lt &&
+        existingBooking.reservedEndMinutes > where.reservedStartMinutes.gt;
 
       return Promise.resolve(overlaps ? existingBooking : null);
     });
@@ -444,7 +455,9 @@ describe('BookingService', () => {
     prisma.$transaction = jest
       .fn()
       .mockRejectedValueOnce(serializationConflict)
-      .mockImplementation(async (operation) => operation(transactionClient)) as unknown as PrismaService['$transaction'];
+      .mockImplementation(async (operation) =>
+        operation(transactionClient),
+      ) as unknown as PrismaService['$transaction'];
 
     await expect(create(createDto)).resolves.toMatchObject({
       id: 'booking-id',
@@ -462,7 +475,9 @@ describe('BookingService', () => {
     );
     prisma.$transaction = jest
       .fn()
-      .mockRejectedValue(serializationConflict) as unknown as PrismaService['$transaction'];
+      .mockRejectedValue(
+        serializationConflict,
+      ) as unknown as PrismaService['$transaction'];
 
     await expect(create(createDto)).rejects.toThrow(ConflictException);
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);

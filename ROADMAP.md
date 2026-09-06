@@ -152,6 +152,7 @@
 * owner routes `/bookings`, `/bookings/new` и `/bookings/:id`;
 * ручное создание, перенос, отмена и завершение записи;
 * snapshot-based Availability при переносе.
+* transactional booking notifications and local/dev delivery dispatcher.
 
 Остаётся:
 

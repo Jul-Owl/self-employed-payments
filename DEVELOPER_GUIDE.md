@@ -68,6 +68,14 @@ SameSite=Lax cookie. Passwords are stored only as bcrypt hashes. Never accept
 or, for public booking only, from the resolved `publicSlug`. Foreign owner
 resources must be treated as not found.
 
+## Booking notifications
+
+Notifications are transactional Booking lifecycle records. The MVP has an
+EMAIL-only local/dev provider; it must not send externally. Dispatch due
+PENDING notifications through NotificationService. Reminder policy is 24
+hours before service start; reminders whose scheduled time is already past are
+skipped.
+
 ---
 
 # Frontend

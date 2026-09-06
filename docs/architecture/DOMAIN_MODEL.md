@@ -41,6 +41,9 @@ Receipt и LedgerEntry — через Transaction. OfficialCalendarDay и Webhoo
 остаются system-scoped. `publicSlug` выбирает владельца только для публичного
 `/book/[slug]` flow.
 
+Notification directly belongs to both User and Booking. Its recipient and
+payload are immutable delivery snapshots, not live customer or Catalog data.
+
 Классификация описывает доменную роль, а не Prisma-модели. Calendar остаётся
 концептуальной предметной областью, а не отдельной сущностью или таблицей.
 

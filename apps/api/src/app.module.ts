@@ -8,6 +8,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { LedgerModule } from './ledger/ledger.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentLinksModule } from './payment-links/payment-links.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -31,6 +32,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ReceiptsModule,
     DashboardModule,
     LedgerModule,
+    NotificationsModule,
     WebhooksModule,
   ],
   controllers: [AppController],

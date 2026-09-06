@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { CalendarService } from '../calendar/calendar.service';
+import { NotificationService } from '../notifications/notifications.service';
 import {
   formatCalendarDate,
   parseCalendarDate,
@@ -22,7 +23,10 @@ import {
   calculateBookingIntervals,
   getBookingIntervalRequirements,
 } from './booking-interval.helper';
-import { CreateBookingDto, CreateBookingItemDto } from './dto/create-booking.dto';
+import {
+  CreateBookingDto,
+  CreateBookingItemDto,
+} from './dto/create-booking.dto';
 import { ListBookingsDto } from './dto/list-bookings.dto';
 import { GetRescheduleAvailabilityDto } from './dto/get-reschedule-availability.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -47,18 +51,23 @@ export class BookingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calendarService: CalendarService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async findAll(dto: ListBookingsDto, ownerId: string) {
     if (dto.date && (dto.dateFrom || dto.dateTo)) {
-      throw new BadRequestException('date cannot be combined with dateFrom or dateTo');
+      throw new BadRequestException(
+        'date cannot be combined with dateFrom or dateTo',
+      );
     }
 
     const dateFrom = dto.dateFrom ? parseCalendarDate(dto.dateFrom) : undefined;
     const dateTo = dto.dateTo ? parseCalendarDate(dto.dateTo) : undefined;
 
     if (dateFrom && dateTo && dateFrom > dateTo) {
-      throw new BadRequestException('dateFrom must be before or equal to dateTo');
+      throw new BadRequestException(
+        'dateFrom must be before or equal to dateTo',
+      );
     }
 
     const bookings = await this.prisma.booking.findMany({
@@ -124,14 +133,20 @@ export class BookingService {
         startMinutes += dto.stepMinutes
       ) {
         if (
-          startMinutes - requirements.bufferBeforeMinutes < resolution.startMinutes ||
-          startMinutes + requirements.durationMinutes + requirements.bufferAfterMinutes >
+          startMinutes - requirements.bufferBeforeMinutes <
+            resolution.startMinutes ||
+          startMinutes +
+            requirements.durationMinutes +
+            requirements.bufferAfterMinutes >
             resolution.endMinutes
         ) {
           continue;
         }
 
-        const intervals = calculateBookingIntervals(startMinutes, booking.items);
+        const intervals = calculateBookingIntervals(
+          startMinutes,
+          booking.items,
+        );
         if (
           !conflicts.some(
             (conflict) =>
@@ -183,7 +198,7 @@ export class BookingService {
         intervals.reservedEndMinutes,
       );
 
-      return tx.booking.create({
+      const createdBooking = await tx.booking.create({
         data: {
           ownerId,
           bookingDate,
@@ -203,6 +218,13 @@ export class BookingService {
         },
         include: { items: true },
       });
+
+      await this.notificationService.createForBookingCreated(
+        tx,
+        createdBooking,
+      );
+
+      return createdBooking;
     });
 
     return this.serializeBooking(booking);
@@ -220,11 +242,16 @@ export class BookingService {
       }
 
       if (booking.status !== BookingStatus.CONFIRMED) {
-        throw new ConflictException('Only confirmed bookings can be rescheduled');
+        throw new ConflictException(
+          'Only confirmed bookings can be rescheduled',
+        );
       }
 
       const bookingDate = parseCalendarDate(dto.bookingDate);
-      const intervals = calculateBookingIntervals(dto.startMinutes, booking.items);
+      const intervals = calculateBookingIntervals(
+        dto.startMinutes,
+        booking.items,
+      );
 
       await this.validateCalendarInterval(
         tx,
@@ -242,7 +269,7 @@ export class BookingService {
         id,
       );
 
-      return tx.booking.update({
+      const rescheduledBooking = await tx.booking.update({
         where: { id },
         data: {
           bookingDate,
@@ -251,17 +278,32 @@ export class BookingService {
         },
         include: { items: true },
       });
+
+      await this.notificationService.createForBookingRescheduled(
+        tx,
+        rescheduledBooking,
+      );
+
+      return rescheduledBooking;
     });
 
     return this.serializeBooking(booking);
   }
 
   async cancel(id: string, ownerId: string) {
-    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.CANCELLED);
+    return this.transitionToTerminalStatus(
+      id,
+      ownerId,
+      BookingStatus.CANCELLED,
+    );
   }
 
   async complete(id: string, ownerId: string) {
-    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.COMPLETED);
+    return this.transitionToTerminalStatus(
+      id,
+      ownerId,
+      BookingStatus.COMPLETED,
+    );
   }
 
   private async transitionToTerminalStatus(
@@ -271,34 +313,61 @@ export class BookingService {
   ) {
     const timestampField =
       status === BookingStatus.CANCELLED ? 'cancelledAt' : 'completedAt';
-    const now = new Date();
-    const result = await this.prisma.booking.updateMany({
-      where: {
-        id,
-        ownerId,
-        status: BookingStatus.CONFIRMED,
-      },
-      data: {
-        status,
-        [timestampField]: now,
-      },
-    });
-
-    if (result.count === 0) {
-      const booking = await this.prisma.booking.findFirst({
-        where: { id, ownerId },
+    const booking = await this.withSerializableRetry(async (tx) => {
+      const now = new Date();
+      const result = await tx.booking.updateMany({
+        where: {
+          id,
+          ownerId,
+          status: BookingStatus.CONFIRMED,
+        },
+        data: {
+          status,
+          [timestampField]: now,
+        },
       });
 
-      if (!booking) {
+      if (result.count === 0) {
+        const existingBooking = await tx.booking.findFirst({
+          where: { id, ownerId },
+        });
+
+        if (!existingBooking) {
+          throw new NotFoundException(`Booking with id "${id}" was not found`);
+        }
+
+        throw new ConflictException(
+          'Only confirmed bookings can change to a terminal status',
+        );
+      }
+
+      const updatedBooking = await tx.booking.findFirst({
+        where: { id, ownerId },
+        include: { items: true },
+      });
+
+      if (!updatedBooking) {
         throw new NotFoundException(`Booking with id "${id}" was not found`);
       }
 
-      throw new ConflictException(
-        'Only confirmed bookings can change to a terminal status',
-      );
-    }
+      if (status === BookingStatus.CANCELLED) {
+        await this.notificationService.createForBookingCancelled(
+          tx,
+          updatedBooking,
+          now,
+        );
+      } else {
+        await this.notificationService.cancelForBookingCompleted(
+          tx,
+          updatedBooking.id,
+          now,
+        );
+      }
 
-    return this.findOne(id, ownerId);
+      return updatedBooking;
+    });
+
+    return this.serializeBooking(booking);
   }
 
   private async createSnapshots(
@@ -366,7 +435,8 @@ export class BookingService {
         throw new BadRequestException('SERVICE quantity must be 1');
       }
 
-      const durationMinutes = input.durationMinutes ?? catalogItem.durationMinutes;
+      const durationMinutes =
+        input.durationMinutes ?? catalogItem.durationMinutes;
 
       if (durationMinutes === null || durationMinutes <= 0) {
         throw new BadRequestException(
@@ -458,7 +528,9 @@ export class BookingService {
     });
 
     if (overlap) {
-      throw new ConflictException('Booking interval overlaps an existing booking');
+      throw new ConflictException(
+        'Booking interval overlaps an existing booking',
+      );
     }
   }
 

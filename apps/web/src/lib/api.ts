@@ -219,6 +219,30 @@ export function completeBooking(id: string) {
   return bookingRequest<Booking>(`/bookings/${id}/complete`, { method: "PATCH" });
 }
 
+export type BookingNotification = {
+  id: string;
+  type:
+    | "BOOKING_CONFIRMATION"
+    | "BOOKING_REMINDER"
+    | "BOOKING_CANCELLED"
+    | "BOOKING_RESCHEDULED";
+  channel: "EMAIL";
+  status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
+  recipient: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  failedAt: string | null;
+  cancelledAt: string | null;
+  failureReason: string | null;
+};
+
+export function fetchBookingNotifications(bookingId: string) {
+  return bookingRequest<BookingNotification[]>(
+    `/notifications?${new URLSearchParams({ bookingId }).toString()}`,
+    { cache: "no-store" },
+  );
+}
+
 export function fetchRescheduleAvailability(id: string, date: string) {
   return bookingRequest<Availability>(
     `/bookings/${id}/availability?${new URLSearchParams({ date, stepMinutes: "15" }).toString()}`,

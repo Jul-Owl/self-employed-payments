@@ -99,6 +99,24 @@ enum BookingItemType {
   PRODUCT
 }
 
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  BOOKING_REMINDER
+  BOOKING_CANCELLED
+  BOOKING_RESCHEDULED
+}
+
+enum NotificationChannel {
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -113,6 +131,7 @@ model User {
   weeklyWorkingHours     WeeklyWorkingHours[]
   calendarDateOverrides  CalendarDateOverride[]
   bookings               Booking[]
+  notifications          Notification[]
   paymentLinks           PaymentLink[]
   transactions           Transaction[]
 }
@@ -217,10 +236,35 @@ model Booking {
 
   owner User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   items BookingItem[]
+  notifications Notification[]
 
   @@index([ownerId])
   @@index([status])
   @@index([bookingDate, status, reservedStartMinutes, reservedEndMinutes])
+}
+
+model Notification {
+  id              String              @id @default(cuid())
+  ownerId         String
+  bookingId       String
+  type            NotificationType
+  channel         NotificationChannel @default(EMAIL)
+  status          NotificationStatus  @default(PENDING)
+  recipient       String
+  scheduledFor    DateTime
+  sentAt          DateTime?
+  failedAt        DateTime?
+  cancelledAt     DateTime?
+  failureReason   String?
+  payloadSnapshot Json
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  owner   User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId, bookingId])
+  @@index([status, scheduledFor])
 }
 
 model BookingItem {
