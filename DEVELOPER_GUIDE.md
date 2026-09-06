@@ -60,6 +60,14 @@ npx pnpm --filter api start:dev
 
 3001
 
+## Authentication and tenant boundary
+
+Owner API routes use an opaque server-side Session from an HttpOnly,
+SameSite=Lax cookie. Passwords are stored only as bcrypt hashes. Never accept
+`ownerId` from an API request: owner scope comes from the validated session,
+or, for public booking only, from the resolved `publicSlug`. Foreign owner
+resources must be treated as not found.
+
 ---
 
 # Frontend

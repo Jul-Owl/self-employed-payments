@@ -32,6 +32,16 @@ describe('BookingService', () => {
     resolveDayInTransaction: jest.fn(),
   } as unknown as CalendarService;
   const service = new BookingService(prisma, calendarService);
+  const OWNER_ID = 'owner-id';
+  const create = (dto: Parameters<BookingService['create']>[0]) =>
+    service.create(dto, OWNER_ID);
+  const findAll = (dto: Parameters<BookingService['findAll']>[0]) =>
+    service.findAll(dto, OWNER_ID);
+  const getRescheduleAvailability = (id: string, dto: Parameters<BookingService['getRescheduleAvailability']>[1]) =>
+    service.getRescheduleAvailability(id, dto, OWNER_ID);
+  const reschedule = (id: string, dto: Parameters<BookingService['reschedule']>[1]) =>
+    service.reschedule(id, dto, OWNER_ID);
+  const complete = (id: string) => service.complete(id, OWNER_ID);
 
   const serviceCatalogItem = {
     id: 'service-id',
@@ -90,7 +100,7 @@ describe('BookingService', () => {
   });
 
   it('creates a Booking with a SERVICE snapshot and calculated interval', async () => {
-    await expect(service.create(createDto)).resolves.toMatchObject({
+    await expect(create(createDto)).resolves.toMatchObject({
       id: 'booking-id',
       bookingDate: '2026-08-10',
     });
@@ -128,7 +138,7 @@ describe('BookingService', () => {
 
   it('uses an inclusive date range with status filtering and chronological order', async () => {
     booking.findMany.mockResolvedValue([]);
-    await service.findAll({
+    await findAll({
       dateFrom: '2026-08-10',
       dateTo: '2026-08-12',
       status: BookingStatus.CONFIRMED,
@@ -136,6 +146,7 @@ describe('BookingService', () => {
     expect(booking.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          ownerId: OWNER_ID,
           bookingDate: {
             gte: new Date('2026-08-10T00:00:00.000Z'),
             lte: new Date('2026-08-12T00:00:00.000Z'),
@@ -149,24 +160,26 @@ describe('BookingService', () => {
 
   it('rejects an inverted Booking date range', async () => {
     await expect(
-      service.findAll({ dateFrom: '2026-08-12', dateTo: '2026-08-10' }),
+      findAll({ dateFrom: '2026-08-12', dateTo: '2026-08-10' }),
     ).rejects.toThrow('dateFrom must be before or equal to dateTo');
   });
 
   it('calculates reschedule availability from BookingItem snapshots', async () => {
-    booking.findUnique.mockResolvedValue({
-      id: 'booking-id',
-      status: BookingStatus.CONFIRMED,
-      items: [
-        {
-          type: BookingItemType.SERVICE,
-          position: 0,
-          durationMinutes: 60,
-          bufferBeforeMinutes: 10,
-          bufferAfterMinutes: 15,
-        },
-      ],
-    });
+    booking.findFirst
+      .mockResolvedValueOnce({
+        id: 'booking-id',
+        status: BookingStatus.CONFIRMED,
+        items: [
+          {
+            type: BookingItemType.SERVICE,
+            position: 0,
+            durationMinutes: 60,
+            bufferBeforeMinutes: 10,
+            bufferAfterMinutes: 15,
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
     booking.findMany.mockResolvedValue([]);
     calendarService.resolveDay.mockResolvedValue({
       date: '2026-08-11',
@@ -176,7 +189,7 @@ describe('BookingService', () => {
     });
 
     await expect(
-      service.getRescheduleAvailability('booking-id', {
+      getRescheduleAvailability('booking-id', {
         date: '2026-08-11',
         stepMinutes: 60,
       }),
@@ -193,7 +206,7 @@ describe('BookingService', () => {
       productCatalogItem,
     ]);
 
-    await service.create({
+    await create({
       ...createDto,
       items: [
         { catalogItemId: 'service-id', quantity: 1 },
@@ -244,7 +257,7 @@ describe('BookingService', () => {
       secondServiceCatalogItem,
     ]);
 
-    await service.create({
+    await create({
       ...createDto,
       items: [
         { catalogItemId: 'service-id', quantity: 1 },
@@ -273,16 +286,35 @@ describe('BookingService', () => {
     catalogItem.findMany.mockResolvedValue([productCatalogItem]);
 
     await expect(
-      service.create({
+      create({
         ...createDto,
         items: [{ catalogItemId: 'product-id', quantity: 1 }],
       }),
     ).rejects.toThrow('Booking must contain at least one SERVICE item');
   });
 
+  it('rejects a CatalogItem that belongs to another owner', async () => {
+    catalogItem.findMany.mockResolvedValue([]);
+
+    await expect(
+      create({
+        ...createDto,
+        items: [{ catalogItemId: 'other-owner-item-id', quantity: 1 }],
+      }),
+    ).rejects.toThrow(
+      'CatalogItem with id "other-owner-item-id" was not found',
+    );
+    expect(catalogItem.findMany).toHaveBeenCalledWith({
+      where: {
+        ownerId: OWNER_ID,
+        id: { in: ['other-owner-item-id'] },
+      },
+    });
+  });
+
   it('rejects SERVICE quantity greater than one', async () => {
     await expect(
-      service.create({
+      create({
         ...createDto,
         items: [{ catalogItemId: 'service-id', quantity: 2 }],
       }),
@@ -291,7 +323,7 @@ describe('BookingService', () => {
 
   it('requires at least one customer contact', async () => {
     await expect(
-      service.create({
+      create({
         ...createDto,
         customerPhone: undefined,
         customerEmail: '  ',
@@ -306,7 +338,7 @@ describe('BookingService', () => {
       endMinutes: 1080,
     });
 
-    await expect(service.create(createDto)).rejects.toThrow(
+    await expect(create(createDto)).rejects.toThrow(
       'Booking interval must fit within the resolved Calendar interval',
     );
   });
@@ -314,25 +346,27 @@ describe('BookingService', () => {
   it('rejects an overlapping confirmed Booking', async () => {
     booking.findFirst.mockResolvedValue({ id: 'existing-booking-id' });
 
-    await expect(service.create(createDto)).rejects.toThrow(
+    await expect(create(createDto)).rejects.toThrow(
       'Booking interval overlaps an existing booking',
     );
   });
 
   it('reschedules without changing BookingItem snapshots', async () => {
-    booking.findUnique.mockResolvedValue({
-      id: 'booking-id',
-      status: BookingStatus.CONFIRMED,
-      items: [
-        {
-          type: BookingItemType.SERVICE,
-          position: 0,
-          durationMinutes: 60,
-          bufferBeforeMinutes: 10,
-          bufferAfterMinutes: 15,
-        },
-      ],
-    });
+    booking.findFirst
+      .mockResolvedValueOnce({
+        id: 'booking-id',
+        status: BookingStatus.CONFIRMED,
+        items: [
+          {
+            type: BookingItemType.SERVICE,
+            position: 0,
+            durationMinutes: 60,
+            bufferBeforeMinutes: 10,
+            bufferAfterMinutes: 15,
+          },
+        ],
+      })
+      .mockResolvedValueOnce(null);
     booking.update.mockImplementation(({ data }) =>
       Promise.resolve({
         id: 'booking-id',
@@ -342,7 +376,7 @@ describe('BookingService', () => {
       }),
     );
 
-    await service.reschedule('booking-id', {
+    await reschedule('booking-id', {
       bookingDate: '2026-08-11',
       startMinutes: 700,
     });
@@ -363,12 +397,12 @@ describe('BookingService', () => {
 
   it('allows a terminal transition only from CONFIRMED', async () => {
     booking.updateMany.mockResolvedValue({ count: 0 });
-    booking.findUnique.mockResolvedValue({
+    booking.findFirst.mockResolvedValue({
       id: 'booking-id',
       status: BookingStatus.CANCELLED,
     });
 
-    await expect(service.complete('booking-id')).rejects.toThrow(
+    await expect(complete('booking-id')).rejects.toThrow(
       ConflictException,
     );
   });
@@ -390,7 +424,7 @@ describe('BookingService', () => {
     });
 
     await expect(
-      service.create({
+      create({
         ...createDto,
         startMinutes: 685,
       }),
@@ -412,7 +446,7 @@ describe('BookingService', () => {
       .mockRejectedValueOnce(serializationConflict)
       .mockImplementation(async (operation) => operation(transactionClient)) as unknown as PrismaService['$transaction'];
 
-    await expect(service.create(createDto)).resolves.toMatchObject({
+    await expect(create(createDto)).resolves.toMatchObject({
       id: 'booking-id',
     });
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
@@ -430,7 +464,7 @@ describe('BookingService', () => {
       .fn()
       .mockRejectedValue(serializationConflict) as unknown as PrismaService['$transaction'];
 
-    await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+    await expect(create(createDto)).rejects.toThrow(ConflictException);
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });
 });

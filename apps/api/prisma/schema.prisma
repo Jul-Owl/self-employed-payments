@@ -99,14 +99,51 @@ enum BookingItemType {
   PRODUCT
 }
 
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  publicSlug   String    @unique
+  passwordHash String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions               Session[]
+  catalogItems           CatalogItem[]
+  weeklyWorkingHours     WeeklyWorkingHours[]
+  calendarDateOverrides  CalendarDateOverride[]
+  bookings               Booking[]
+  paymentLinks           PaymentLink[]
+  transactions           Transaction[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model WeeklyWorkingHours {
   id           String    @id @default(cuid())
-  dayOfWeek    DayOfWeek @unique
+  ownerId      String
+  dayOfWeek    DayOfWeek
   isWorking    Boolean
   startMinutes Int?
   endMinutes   Int?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@unique([ownerId, dayOfWeek])
+  @@index([ownerId])
 }
 
 model OfficialCalendarDay {
@@ -119,17 +156,24 @@ model OfficialCalendarDay {
 
 model CalendarDateOverride {
   id           String                   @id @default(cuid())
-  date         DateTime                 @db.Date @unique
+  ownerId      String
+  date         DateTime                 @db.Date
   type         CalendarDateOverrideType
   startMinutes Int?
   endMinutes   Int?
   reason       String?
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@unique([ownerId, date])
+  @@index([ownerId])
 }
 
 model CatalogItem {
   id                  String                   @id @default(cuid())
+  ownerId             String
   title               String
   description         String?
   type                CatalogItemType
@@ -146,11 +190,15 @@ model CatalogItem {
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
 
-  bookingItems        BookingItem[]
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  bookingItems BookingItem[]
+
+  @@index([ownerId])
 }
 
 model Booking {
   id                   String        @id @default(cuid())
+  ownerId              String
   bookingDate          DateTime      @db.Date
   startMinutes         Int
   serviceEndMinutes    Int
@@ -167,8 +215,10 @@ model Booking {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
+  owner User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   items BookingItem[]
 
+  @@index([ownerId])
   @@index([status])
   @@index([bookingDate, status, reservedStartMinutes, reservedEndMinutes])
 }
@@ -199,14 +249,18 @@ model BookingItem {
 
 model PaymentLink {
   id           String            @id @default(cuid())
+  ownerId      String
   title        String
   amount       Int
   payerType    String
   status       PaymentLinkStatus @default(ACTIVE)
   createdAt    DateTime          @default(now())
 
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   transactions Transaction[]
   payments     Payment[]
+
+  @@index([ownerId])
 }
 
 model Payment {
@@ -230,6 +284,7 @@ model Payment {
 
 model Transaction {
   id                String            @id @default(cuid())
+  ownerId           String
   title             String
   client            String
   grossAmount       Int
@@ -243,12 +298,14 @@ model Transaction {
   externalPaymentId String?
   externalStatus    String?
 
+  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   paymentLinkId     String?
   paymentLink       PaymentLink?      @relation(fields: [paymentLinkId], references: [id])
 
   receipt           Receipt?
   ledgerEntries     LedgerEntry[]
 
+  @@index([ownerId])
   @@index([externalPaymentId])
 }
 

@@ -37,7 +37,7 @@
 
 ### Auth
 /login
-/verify
+/register
 
 ### App
 /dashboard
@@ -54,7 +54,7 @@
 
 ### Public
 /pay/[token]
-/book
+/book/[slug]
 
 ### Admin
 /admin

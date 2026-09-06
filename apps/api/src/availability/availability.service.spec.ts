@@ -19,6 +19,9 @@ describe('AvailabilityService', () => {
     resolveDay: jest.fn(),
   } as unknown as CalendarService;
   const service = new AvailabilityService(prisma, calendarService);
+  const OWNER_ID = 'owner-id';
+  const getAvailability = (dto: Parameters<AvailabilityService['getAvailability']>[0]) =>
+    service.getAvailability(dto, OWNER_ID);
 
   const serviceCatalogItem = {
     id: 'service-id',
@@ -67,7 +70,7 @@ describe('AvailabilityService', () => {
       resolvedRule: 'WEEKLY_CLOSED',
     });
 
-    await expect(service.getAvailability(dto)).resolves.toMatchObject({
+    await expect(getAvailability(dto)).resolves.toMatchObject({
       date: '2026-09-12',
       slots: [],
     });
@@ -75,7 +78,7 @@ describe('AvailabilityService', () => {
   });
 
   it('generates simple slots within the resolved working interval', async () => {
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       stepMinutes: 60,
     });
@@ -94,7 +97,7 @@ describe('AvailabilityService', () => {
       },
     ]);
 
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       stepMinutes: 15,
     });
@@ -129,7 +132,7 @@ describe('AvailabilityService', () => {
       },
     ]);
 
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       catalogItemIds: ['service-a', 'service-b'],
       stepMinutes: 10,
@@ -154,7 +157,7 @@ describe('AvailabilityService', () => {
       productCatalogItem,
     ]);
 
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       catalogItemIds: ['service-id', 'product-id'],
       stepMinutes: 60,
@@ -174,7 +177,7 @@ describe('AvailabilityService', () => {
     catalogItem.findMany.mockResolvedValue([productCatalogItem]);
 
     await expect(
-      service.getAvailability({
+      getAvailability({
         ...dto,
         catalogItemIds: ['product-id'],
       }),
@@ -189,7 +192,7 @@ describe('AvailabilityService', () => {
       },
     ]);
 
-    await expect(service.getAvailability(dto)).rejects.toThrow(
+    await expect(getAvailability(dto)).rejects.toThrow(
       'CatalogItem with id "service-id" is inactive',
     );
   });
@@ -210,7 +213,7 @@ describe('AvailabilityService', () => {
       },
     ]);
 
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       stepMinutes: 60,
     });
@@ -218,6 +221,7 @@ describe('AvailabilityService', () => {
     expect(result.slots.map((slot) => slot.startMinutes)).toEqual([660]);
     expect(booking.findMany).toHaveBeenCalledWith({
       where: {
+        ownerId: OWNER_ID,
         bookingDate: new Date('2026-09-12T00:00:00.000Z'),
         status: BookingStatus.CONFIRMED,
       },
@@ -244,7 +248,7 @@ describe('AvailabilityService', () => {
       },
     ]);
 
-    const result = await service.getAvailability({
+    const result = await getAvailability({
       ...dto,
       stepMinutes: 60,
     });
@@ -269,7 +273,7 @@ describe('AvailabilityService', () => {
       );
 
       await expect(
-        service.getAvailability({
+        getAvailability({
           ...dto,
           stepMinutes: 120,
         }),
@@ -297,17 +301,17 @@ describe('AvailabilityService', () => {
       resolvedRule: 'CLOSED',
     });
 
-    await expect(service.getAvailability(dto)).resolves.toMatchObject({
+    await expect(getAvailability(dto)).resolves.toMatchObject({
       slots: [],
     });
-    expect(calendarService.resolveDay).toHaveBeenCalledWith('2026-09-12');
+    expect(calendarService.resolveDay).toHaveBeenCalledWith('2026-09-12', OWNER_ID);
   });
 
   it.each([0, 4, 121, 7.5])(
     'rejects invalid stepMinutes %p',
     async (stepMinutes) => {
       await expect(
-        service.getAvailability({
+        getAvailability({
           ...dto,
           stepMinutes,
         }),

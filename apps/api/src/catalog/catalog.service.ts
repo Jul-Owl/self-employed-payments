@@ -10,6 +10,7 @@ import { CreateCatalogItemDto } from './dto/create-catalog-item.dto';
 import { UpdateCatalogItemDto } from './dto/update-catalog-item.dto';
 
 interface CatalogItemInput {
+  ownerId: string;
   title: string;
   description: string | null;
   type: CatalogItemType;
@@ -29,17 +30,19 @@ interface CatalogItemInput {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.catalogItem.findMany({
+      where: { ownerId },
       orderBy: {
         createdAt: 'desc',
       },
     });
   }
 
-  findBookableServices() {
+  findBookableServices(ownerId: string) {
     return this.prisma.catalogItem.findMany({
       where: {
+        ownerId,
         type: CatalogItemType.SERVICE,
         isActive: true,
         isBookable: true,
@@ -59,9 +62,9 @@ export class CatalogService {
     });
   }
 
-  async findOne(id: string) {
-    const catalogItem = await this.prisma.catalogItem.findUnique({
-      where: { id },
+  async findOne(id: string, ownerId: string) {
+    const catalogItem = await this.prisma.catalogItem.findFirst({
+      where: { id, ownerId },
     });
 
     if (!catalogItem) {
@@ -71,9 +74,10 @@ export class CatalogService {
     return catalogItem;
   }
 
-  create(dto: CreateCatalogItemDto) {
+  create(dto: CreateCatalogItemDto, ownerId: string) {
     return this.prisma.catalogItem.create({
       data: this.toPrismaData({
+        ownerId,
         title: dto.title,
         description: dto.description ?? null,
         type: dto.type,
@@ -91,12 +95,13 @@ export class CatalogService {
     });
   }
 
-  async update(id: string, dto: UpdateCatalogItemDto) {
-    const catalogItem = await this.findOne(id);
+  async update(id: string, dto: UpdateCatalogItemDto, ownerId: string) {
+    const catalogItem = await this.findOne(id, ownerId);
 
     return this.prisma.catalogItem.update({
       where: { id },
       data: this.toPrismaData({
+        ownerId: catalogItem.ownerId,
         title: dto.title ?? catalogItem.title,
         description:
           dto.description === undefined ? catalogItem.description : dto.description,
@@ -126,8 +131,8 @@ export class CatalogService {
     });
   }
 
-  async archive(id: string) {
-    await this.findOne(id);
+  async archive(id: string, ownerId: string) {
+    await this.findOne(id, ownerId);
 
     return this.prisma.catalogItem.update({
       where: { id },
@@ -137,7 +142,9 @@ export class CatalogService {
     });
   }
 
-  private toPrismaData(input: CatalogItemInput): Prisma.CatalogItemCreateInput {
+  private toPrismaData(
+    input: CatalogItemInput,
+  ): Prisma.CatalogItemUncheckedCreateInput {
     this.validateBusinessRules(input);
 
     if (input.type === CatalogItemType.PRODUCT) {

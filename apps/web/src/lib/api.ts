@@ -92,13 +92,23 @@ export class ApiRequestError extends Error {
   }
 }
 
+export type AuthenticatedUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  publicSlug: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 async function catalogRequest<T>(path: string, options?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    ...options,
   });
 
   if (!response.ok) {
@@ -125,6 +135,13 @@ export function fetchBookableServices() {
   });
 }
 
+export function fetchPublicBookableServices(slug: string) {
+  return publicBookingRequest<PublicBookableService[]>(
+    `/public/${encodeURIComponent(slug)}/catalog`,
+    { cache: "no-store" },
+  );
+}
+
 export async function fetchAvailability(
   date: string,
   catalogItemIds: string[],
@@ -137,11 +154,35 @@ export async function fetchAvailability(
   });
 }
 
+export async function fetchPublicAvailability(
+  slug: string,
+  date: string,
+  catalogItemIds: string[],
+) {
+  const searchParams = new URLSearchParams({ date, stepMinutes: "15" });
+  catalogItemIds.forEach((id) => searchParams.append("catalogItemIds", id));
+
+  return publicBookingRequest<Availability>(
+    `/public/${encodeURIComponent(slug)}/availability?${searchParams.toString()}`,
+    { cache: "no-store" },
+  );
+}
+
 export function createBooking(payload: CreateBookingPayload) {
   return bookingRequest<Booking>("/bookings", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function createPublicBooking(slug: string, payload: CreateBookingPayload) {
+  return publicBookingRequest<Booking>(
+    `/public/${encodeURIComponent(slug)}/bookings`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function fetchBookings(params?: {
@@ -187,11 +228,12 @@ export function fetchRescheduleAvailability(id: string, date: string) {
 
 async function bookingRequest<T>(path: string, options?: RequestInit) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    ...options,
   });
   const body = await response.json().catch(() => null);
 
@@ -207,6 +249,81 @@ async function bookingRequest<T>(path: string, options?: RequestInit) {
   }
 
   return body as T;
+}
+
+async function publicBookingRequest<T>(path: string, options?: RequestInit) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : body?.message;
+
+    throw new ApiRequestError(
+      message || "Не удалось выполнить запрос",
+      response.status,
+    );
+  }
+
+  return body as T;
+}
+
+async function authRequest<T>(path: string, options?: RequestInit) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+  const body = response.status === 204 ? null : await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : body?.message;
+
+    throw new ApiRequestError(
+      message || "Не удалось выполнить запрос авторизации",
+      response.status,
+    );
+  }
+
+  return body as T;
+}
+
+export function register(payload: {
+  email: string;
+  password: string;
+  name?: string;
+}) {
+  return authRequest<AuthenticatedUser>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function login(payload: { email: string; password: string }) {
+  return authRequest<AuthenticatedUser>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function logout() {
+  return authRequest<void>("/auth/logout", { method: "POST" });
+}
+
+export function fetchAuthenticatedUser() {
+  return authRequest<AuthenticatedUser>("/auth/me", { cache: "no-store" });
 }
 
 export function createCatalogItem(payload: CatalogItemPayload) {
@@ -342,6 +459,7 @@ export function resolveCalendarDay(date: string) {
 export async function fetchPaymentLinks() {
   const response = await fetch(`${API_BASE_URL}/payment-links`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -358,6 +476,7 @@ export async function createPaymentLink(payload: {
 }) {
   const response = await fetch(`${API_BASE_URL}/payment-links`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -373,6 +492,7 @@ export async function createPaymentLink(payload: {
 export async function fetchTransactions() {
   const response = await fetch(`${API_BASE_URL}/transactions`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -391,6 +511,7 @@ export async function createTransaction(payload: {
 }) {
   const response = await fetch(`${API_BASE_URL}/transactions`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -406,6 +527,7 @@ export async function createTransaction(payload: {
 export async function fetchReceipts() {
   const response = await fetch(`${API_BASE_URL}/receipts`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -424,6 +546,7 @@ export async function createReceipt(payload: {
 }) {
   const response = await fetch(`${API_BASE_URL}/receipts`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -439,6 +562,7 @@ export async function createReceipt(payload: {
 export async function fetchPaymentLinkById(id: string) {
   const response = await fetch(`${API_BASE_URL}/payment-links/${id}`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -450,6 +574,7 @@ export async function fetchPaymentLinkById(id: string) {
 export async function fetchTransactionById(id: string) {
   const response = await fetch(`${API_BASE_URL}/transactions/${id}`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -461,6 +586,7 @@ export async function fetchTransactionById(id: string) {
 export async function fetchReceiptById(id: string) {
   const response = await fetch(`${API_BASE_URL}/receipts/${id}`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -474,6 +600,7 @@ export async function simulatePayment(paymentLinkId: string) {
     `${API_BASE_URL}/payment-links/${paymentLinkId}/simulate-payment`,
     {
       method: "POST",
+      credentials: "include",
     }
   );
 
@@ -486,6 +613,7 @@ export async function simulatePayment(paymentLinkId: string) {
 export async function fetchDashboard() {
   const response = await fetch(`${API_BASE_URL}/dashboard`, {
     cache: "no-store",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -493,4 +621,21 @@ export async function fetchDashboard() {
   }
 
   return response.json();
+}
+
+export type LedgerEntry = {
+  id: string;
+  type: string;
+  direction: "CREDIT" | "DEBIT";
+  amount: number;
+  createdAt: string;
+  transaction: {
+    id: string;
+    title: string;
+    client: string;
+  };
+};
+
+export function fetchLedgerEntries() {
+  return bookingRequest<LedgerEntry[]>("/ledger", { cache: "no-store" });
 }

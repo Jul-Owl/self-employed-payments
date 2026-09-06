@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   PaymentStatus,
+  Prisma,
   ReceiptStatus,
   TransactionStatus,
   WebhookEventStatus,
@@ -59,8 +60,28 @@ export class WebhooksService {
           },
         });
 
+        const paymentLink = await this.findPaymentLink(
+          tx,
+          paymentLinkId,
+          externalPaymentId,
+        );
+
+        if (!paymentLink) {
+          const failedWebhookEvent = await tx.webhookEvent.update({
+            where: { id: webhookEvent.id },
+            data: {
+              status: WebhookEventStatus.FAILED,
+              errorMessage: 'Payment link could not be resolved for webhook',
+              processedAt: new Date(),
+            },
+          });
+
+          return { webhookEvent: failedWebhookEvent, transaction: null };
+        }
+
         const transaction = await tx.transaction.create({
           data: {
+            ownerId: paymentLink.ownerId,
             title: payload.title ?? 'Неуспешная оплата',
             client: payload.client ?? 'Клиент из webhook',
             grossAmount: amount,
@@ -71,7 +92,7 @@ export class WebhooksService {
             status: TransactionStatus.FAILED,
             externalPaymentId,
             externalStatus: eventType,
-            paymentLinkId,
+            paymentLinkId: paymentLink.id,
           },
         });
 
@@ -141,8 +162,28 @@ export class WebhooksService {
         },
       });
 
+      const paymentLink = await this.findPaymentLink(
+        tx,
+        paymentLinkId,
+        externalPaymentId,
+      );
+
+      if (!paymentLink) {
+        const failedWebhookEvent = await tx.webhookEvent.update({
+          where: { id: webhookEvent.id },
+          data: {
+            status: WebhookEventStatus.FAILED,
+            errorMessage: 'Payment link could not be resolved for webhook',
+            processedAt: new Date(),
+          },
+        });
+
+        return { webhookEvent: failedWebhookEvent, transaction: null, receipt: null };
+      }
+
       const transaction = await tx.transaction.create({
         data: {
+          ownerId: paymentLink.ownerId,
           title: payload.title ?? 'Оплата по внешнему API',
           client: payload.client ?? 'Клиент из webhook',
           grossAmount,
@@ -153,7 +194,7 @@ export class WebhooksService {
           status: TransactionStatus.PROCESSED,
           externalPaymentId,
           externalStatus: eventType,
-          paymentLinkId,
+          paymentLinkId: paymentLink.id,
         },
       });
 
@@ -217,5 +258,33 @@ export class WebhooksService {
         createdAt: 'desc',
       },
     });
+  }
+
+  private async findPaymentLink(
+    tx: Prisma.TransactionClient,
+    paymentLinkId: string | null,
+    externalPaymentId: string | null,
+  ) {
+    if (paymentLinkId) {
+      return tx.paymentLink.findUnique({
+        where: { id: paymentLinkId },
+        select: { id: true, ownerId: true },
+      });
+    }
+
+    if (!externalPaymentId) {
+      return null;
+    }
+
+    const payment = await tx.payment.findUnique({
+      where: { externalPaymentId },
+      select: {
+        paymentLink: {
+          select: { id: true, ownerId: true },
+        },
+      },
+    });
+
+    return payment?.paymentLink ?? null;
   }
 }

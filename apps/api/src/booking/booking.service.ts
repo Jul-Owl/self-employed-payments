@@ -49,7 +49,7 @@ export class BookingService {
     private readonly calendarService: CalendarService,
   ) {}
 
-  async findAll(dto: ListBookingsDto) {
+  async findAll(dto: ListBookingsDto, ownerId: string) {
     if (dto.date && (dto.dateFrom || dto.dateTo)) {
       throw new BadRequestException('date cannot be combined with dateFrom or dateTo');
     }
@@ -63,6 +63,7 @@ export class BookingService {
 
     const bookings = await this.prisma.booking.findMany({
       where: {
+        ownerId,
         bookingDate: dto.date
           ? parseCalendarDate(dto.date)
           : dateFrom || dateTo
@@ -80,9 +81,10 @@ export class BookingService {
   async getRescheduleAvailability(
     id: string,
     dto: GetRescheduleAvailabilityDto,
+    ownerId: string,
   ) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id },
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, ownerId },
       include: { items: true },
     });
 
@@ -94,9 +96,10 @@ export class BookingService {
     }
 
     const [resolution, conflicts] = await Promise.all([
-      this.calendarService.resolveDay(dto.date),
+      this.calendarService.resolveDay(dto.date, ownerId),
       this.prisma.booking.findMany({
         where: {
+          ownerId,
           bookingDate: parseCalendarDate(dto.date),
           status: BookingStatus.CONFIRMED,
           id: { not: id },
@@ -144,9 +147,9 @@ export class BookingService {
     return { date: resolution.date, ...requirements, slots };
   }
 
-  async findOne(id: string) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id },
+  async findOne(id: string, ownerId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, ownerId },
       include: { items: true },
     });
 
@@ -157,29 +160,32 @@ export class BookingService {
     return this.serializeBooking(booking);
   }
 
-  async create(dto: CreateBookingDto) {
+  async create(dto: CreateBookingDto, ownerId: string) {
     this.validateCustomerContacts(dto);
 
     const booking = await this.withSerializableRetry(async (tx) => {
       const bookingDate = parseCalendarDate(dto.bookingDate);
-      const snapshots = await this.createSnapshots(tx, dto.items);
+      const snapshots = await this.createSnapshots(tx, dto.items, ownerId);
       const intervals = calculateBookingIntervals(dto.startMinutes, snapshots);
 
       await this.validateCalendarInterval(
         tx,
         dto.bookingDate,
+        ownerId,
         intervals.reservedStartMinutes,
         intervals.reservedEndMinutes,
       );
       await this.ensureNoOverlap(
         tx,
         bookingDate,
+        ownerId,
         intervals.reservedStartMinutes,
         intervals.reservedEndMinutes,
       );
 
       return tx.booking.create({
         data: {
+          ownerId,
           bookingDate,
           startMinutes: dto.startMinutes,
           ...intervals,
@@ -202,10 +208,10 @@ export class BookingService {
     return this.serializeBooking(booking);
   }
 
-  async reschedule(id: string, dto: RescheduleBookingDto) {
+  async reschedule(id: string, dto: RescheduleBookingDto, ownerId: string) {
     const booking = await this.withSerializableRetry(async (tx) => {
-      const booking = await tx.booking.findUnique({
-        where: { id },
+      const booking = await tx.booking.findFirst({
+        where: { id, ownerId },
         include: { items: true },
       });
 
@@ -223,12 +229,14 @@ export class BookingService {
       await this.validateCalendarInterval(
         tx,
         dto.bookingDate,
+        ownerId,
         intervals.reservedStartMinutes,
         intervals.reservedEndMinutes,
       );
       await this.ensureNoOverlap(
         tx,
         bookingDate,
+        ownerId,
         intervals.reservedStartMinutes,
         intervals.reservedEndMinutes,
         id,
@@ -248,21 +256,26 @@ export class BookingService {
     return this.serializeBooking(booking);
   }
 
-  async cancel(id: string) {
-    return this.transitionToTerminalStatus(id, BookingStatus.CANCELLED);
+  async cancel(id: string, ownerId: string) {
+    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.CANCELLED);
   }
 
-  async complete(id: string) {
-    return this.transitionToTerminalStatus(id, BookingStatus.COMPLETED);
+  async complete(id: string, ownerId: string) {
+    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.COMPLETED);
   }
 
-  private async transitionToTerminalStatus(id: string, status: BookingStatus) {
+  private async transitionToTerminalStatus(
+    id: string,
+    ownerId: string,
+    status: BookingStatus,
+  ) {
     const timestampField =
       status === BookingStatus.CANCELLED ? 'cancelledAt' : 'completedAt';
     const now = new Date();
     const result = await this.prisma.booking.updateMany({
       where: {
         id,
+        ownerId,
         status: BookingStatus.CONFIRMED,
       },
       data: {
@@ -272,7 +285,9 @@ export class BookingService {
     });
 
     if (result.count === 0) {
-      const booking = await this.prisma.booking.findUnique({ where: { id } });
+      const booking = await this.prisma.booking.findFirst({
+        where: { id, ownerId },
+      });
 
       if (!booking) {
         throw new NotFoundException(`Booking with id "${id}" was not found`);
@@ -283,15 +298,17 @@ export class BookingService {
       );
     }
 
-    return this.findOne(id);
+    return this.findOne(id, ownerId);
   }
 
   private async createSnapshots(
     tx: Prisma.TransactionClient,
     items: CreateBookingItemDto[],
+    ownerId: string,
   ): Promise<BookingItemSnapshot[]> {
     const catalogItems = await tx.catalogItem.findMany({
       where: {
+        ownerId,
         id: { in: items.map((item) => item.catalogItemId) },
       },
     });
@@ -398,12 +415,14 @@ export class BookingService {
   private async validateCalendarInterval(
     tx: Prisma.TransactionClient,
     bookingDate: string,
+    ownerId: string,
     reservedStartMinutes: number,
     reservedEndMinutes: number,
   ) {
     const resolution = await this.calendarService.resolveDayInTransaction(
       tx,
       bookingDate,
+      ownerId,
     );
 
     if (
@@ -422,12 +441,14 @@ export class BookingService {
   private async ensureNoOverlap(
     tx: Prisma.TransactionClient,
     bookingDate: Date,
+    ownerId: string,
     reservedStartMinutes: number,
     reservedEndMinutes: number,
     excludedBookingId?: string,
   ) {
     const overlap = await tx.booking.findFirst({
       where: {
+        ownerId,
         bookingDate,
         status: BookingStatus.CONFIRMED,
         id: excludedBookingId ? { not: excludedBookingId } : undefined,

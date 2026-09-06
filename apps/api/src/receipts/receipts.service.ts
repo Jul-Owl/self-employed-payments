@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReceiptStatus } from '@prisma/client';
 
@@ -6,19 +6,41 @@ import { ReceiptStatus } from '@prisma/client';
 export class ReceiptsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.receipt.findMany({
+      where: { transaction: { ownerId } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.receipt.findUnique({
-      where: { id },
+  async findOne(id: string, ownerId: string) {
+    const receipt = await this.prisma.receipt.findFirst({
+      where: { id, transaction: { ownerId } },
     });
+
+    if (!receipt) {
+      throw new NotFoundException(`Receipt with id "${id}" was not found`);
+    }
+
+    return receipt;
   }
 
-  create(body: any) {
+  async create(body: any, ownerId: string) {
+    if (typeof body.transactionId !== 'string') {
+      throw new BadRequestException('transactionId is required');
+    }
+
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id: body.transactionId, ownerId },
+      select: { id: true },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(
+        `Transaction with id "${body.transactionId}" was not found`,
+      );
+    }
+
     return this.prisma.receipt.create({
       data: {
         title: body.title,
@@ -26,6 +48,7 @@ export class ReceiptsService {
         amount: Number(body.amount),
         status: body.status ?? ReceiptStatus.PENDING,
         date: body.date ?? 'только что',
+        transactionId: transaction.id,
       },
     });
   }

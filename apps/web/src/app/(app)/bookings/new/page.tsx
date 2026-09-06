@@ -1,5 +1,5 @@
-import PublicBookingPage from "@/app/book/page";
+import BookingForm from "@/components/booking-form";
 
 export default function NewBookingPage() {
-  return <PublicBookingPage owner />;
+  return <BookingForm owner />;
 }

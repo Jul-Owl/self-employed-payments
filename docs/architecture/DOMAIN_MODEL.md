@@ -32,6 +32,15 @@
 | Fact | Transaction, LedgerEntry. |
 | System | Payment, WebhookEvent, OfficialCalendarDay, будущие User и назначение правил монетизации. |
 
+## Ownership boundary
+
+`User` — владелец одного бизнеса MVP. Прямой `ownerId` имеют CatalogItem,
+WeeklyWorkingHours, CalendarDateOverride, Booking, PaymentLink и Transaction.
+BookingItem наследует owner через Booking; Payment — через PaymentLink;
+Receipt и LedgerEntry — через Transaction. OfficialCalendarDay и WebhookEvent
+остаются system-scoped. `publicSlug` выбирает владельца только для публичного
+`/book/[slug]` flow.
+
 Классификация описывает доменную роль, а не Prisma-модели. Calendar остаётся
 концептуальной предметной областью, а не отдельной сущностью или таблицей.
 

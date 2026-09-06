@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CatalogItemPaymentPolicy,
   CatalogItemType,
@@ -12,11 +12,17 @@ describe('CatalogService', () => {
   const catalogItem = {
     create: jest.fn(),
     findMany: jest.fn(),
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
   };
   const prisma = { catalogItem } as unknown as PrismaService;
   const service = new CatalogService(prisma);
+  const OWNER_ID = 'owner-id';
+  const create = (dto: CreateCatalogItemDto) => service.create(dto, OWNER_ID);
+  const archive = (id: string) => service.archive(id, OWNER_ID);
+  const findBookableServices = () => service.findBookableServices(OWNER_ID);
+  const update = (id: string, dto: Parameters<CatalogService['update']>[1]) =>
+    service.update(id, dto, OWNER_ID);
 
   const serviceDto: CreateCatalogItemDto = {
     title: 'Консультация',
@@ -28,7 +34,7 @@ describe('CatalogService', () => {
   });
 
   it('creates a SERVICE without a unit', () => {
-    service.create(serviceDto);
+    create(serviceDto);
 
     expect(catalogItem.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -41,7 +47,7 @@ describe('CatalogService', () => {
   });
 
   it('creates a PRODUCT and normalizes service-only fields', () => {
-    service.create({
+    create({
       title: 'Материалы',
       type: CatalogItemType.PRODUCT,
       unit: CatalogItemUnit.PIECE,
@@ -67,7 +73,7 @@ describe('CatalogService', () => {
 
   it('rejects a PRODUCT without a unit', () => {
     expect(() =>
-      service.create({
+      create({
         title: 'Материалы',
         type: CatalogItemType.PRODUCT,
       }),
@@ -76,7 +82,7 @@ describe('CatalogService', () => {
 
   it('rejects a unit for a SERVICE', () => {
     expect(() =>
-      service.create({
+      create({
         ...serviceDto,
         unit: CatalogItemUnit.HOUR,
       }),
@@ -88,7 +94,7 @@ describe('CatalogService', () => {
     CatalogItemPaymentPolicy.PERCENT_PREPAYMENT,
   ])('rejects %s without prepaymentValue', (paymentPolicy) => {
     expect(() =>
-      service.create({
+      create({
         ...serviceDto,
         paymentPolicy,
       }),
@@ -100,7 +106,7 @@ describe('CatalogService', () => {
     CatalogItemPaymentPolicy.FULL_PREPAYMENT,
   ])('rejects a surplus prepaymentValue for %s', (paymentPolicy) => {
     expect(() =>
-      service.create({
+      create({
         ...serviceDto,
         paymentPolicy,
         prepaymentValue: 100,
@@ -109,11 +115,11 @@ describe('CatalogService', () => {
   });
 
   it('archives an item by setting isActive to false', async () => {
-    catalogItem.findUnique.mockResolvedValue({
+    catalogItem.findFirst.mockResolvedValue({
       id: 'catalog-item-id',
     });
 
-    await service.archive('catalog-item-id');
+    await archive('catalog-item-id');
 
     expect(catalogItem.update).toHaveBeenCalledWith({
       where: { id: 'catalog-item-id' },
@@ -124,10 +130,11 @@ describe('CatalogService', () => {
   it('returns only active bookable SERVICE items for public booking', async () => {
     catalogItem.findMany.mockResolvedValue([]);
 
-    await service.findBookableServices();
+    await findBookableServices();
 
     expect(catalogItem.findMany).toHaveBeenCalledWith({
       where: {
+        ownerId: OWNER_ID,
         type: CatalogItemType.SERVICE,
         isActive: true,
         isBookable: true,
@@ -145,10 +152,22 @@ describe('CatalogService', () => {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+  });
+
+  it('does not expose a CatalogItem owned by another user', async () => {
+    catalogItem.findFirst.mockResolvedValue(null);
+
+    await expect(service.findOne('other-owner-item', OWNER_ID)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(catalogItem.findFirst).toHaveBeenCalledWith({
+      where: { id: 'other-owner-item', ownerId: OWNER_ID },
+    });
   });
 
   it('preserves PRODUCT invariants on PATCH', async () => {
-    catalogItem.findUnique.mockResolvedValue({
+    catalogItem.findFirst.mockResolvedValue({
       id: 'catalog-item-id',
       title: 'Материалы',
       description: null,
@@ -165,7 +184,7 @@ describe('CatalogService', () => {
       category: null,
     });
 
-    await service.update('catalog-item-id', {
+    await update('catalog-item-id', {
       isBookable: true,
       durationMinutes: 45,
       bufferBeforeMinutes: 5,

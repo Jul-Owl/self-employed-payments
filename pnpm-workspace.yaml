@@ -2,5 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  '@nestjs/core': false
   '@prisma/engines': false
+  bcrypt: true
   prisma: false

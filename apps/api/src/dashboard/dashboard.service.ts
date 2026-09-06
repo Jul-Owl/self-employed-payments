@@ -9,15 +9,17 @@ export class DashboardService {
     private readonly ledgerService: LedgerService,
   ) {}
 
-  async getDashboard() {
+  async getDashboard(ownerId: string) {
     // Get balance aggregates from Ledger (source of truth)
-    const totalAmount = await this.ledgerService.getTotalReceived();
-    const totalTax = await this.ledgerService.getTaxReserve();
-    const totalPlatformFee = await this.ledgerService.getPlatformFeeReserve();
-    const available = await this.ledgerService.getAvailableBalance();
+    const totalAmount = await this.ledgerService.getTotalReceived(ownerId);
+    const totalTax = await this.ledgerService.getTaxReserve(ownerId);
+    const totalPlatformFee =
+      await this.ledgerService.getPlatformFeeReserve(ownerId);
+    const available = await this.ledgerService.getAvailableBalance(ownerId);
 
     // Get recent transactions for display
     const transactions = await this.prisma.transaction.findMany({
+      where: { ownerId },
       orderBy: {
         createdAt: 'desc',
       },

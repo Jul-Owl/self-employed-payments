@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   PaymentLinkStatus,
   ReceiptStatus,
@@ -14,19 +14,21 @@ export class PaymentLinksService {
     private readonly ledgerService: LedgerService,
   ) {}
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.paymentLink.findMany({
+      where: { ownerId },
       orderBy: {
         createdAt: 'desc',
       },
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.paymentLink.findUnique({
-      where: { id },
+  async findOne(id: string, ownerId: string) {
+    const paymentLink = await this.prisma.paymentLink.findFirst({
+      where: { id, ownerId },
       include: {
         transactions: {
+          where: { ownerId },
           orderBy: {
             createdAt: 'desc',
           },
@@ -41,11 +43,18 @@ export class PaymentLinksService {
         },
       },
     });
+
+    if (!paymentLink) {
+      throw new NotFoundException(`PaymentLink with id "${id}" was not found`);
+    }
+
+    return paymentLink;
   }
 
-  create(body: any) {
+  create(body: any, ownerId: string) {
     return this.prisma.paymentLink.create({
       data: {
+        ownerId,
         title: body.title,
         amount: Number(body.amount),
         payerType: body.payerType,
@@ -54,13 +63,13 @@ export class PaymentLinksService {
     });
   }
 
-  async simulatePayment(id: string) {
-    const paymentLink = await this.prisma.paymentLink.findUnique({
-      where: { id },
+  async simulatePayment(id: string, ownerId: string) {
+    const paymentLink = await this.prisma.paymentLink.findFirst({
+      where: { id, ownerId },
     });
 
     if (!paymentLink) {
-      return null;
+      throw new NotFoundException(`PaymentLink with id "${id}" was not found`);
     }
 
     const grossAmount = paymentLink.amount;
@@ -71,6 +80,7 @@ export class PaymentLinksService {
     const result = await this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.create({
         data: {
+          ownerId: paymentLink.ownerId,
           title: paymentLink.title,
           client: 'Тестовый клиент',
           grossAmount,

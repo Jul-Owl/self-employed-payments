@@ -20,13 +20,13 @@ export class AvailabilityService {
     private readonly calendarService: CalendarService,
   ) {}
 
-  async getAvailability(dto: GetAvailabilityDto) {
+  async getAvailability(dto: GetAvailabilityDto, ownerId: string) {
     const stepMinutes = dto.stepMinutes ?? DEFAULT_STEP_MINUTES;
     this.validateStepMinutes(stepMinutes);
 
     const [items, resolvedDay] = await Promise.all([
-      this.getIntervalItems(dto.catalogItemIds),
-      this.calendarService.resolveDay(dto.date),
+      this.getIntervalItems(dto.catalogItemIds, ownerId),
+      this.calendarService.resolveDay(dto.date, ownerId),
     ]);
     const requirements = getBookingIntervalRequirements(items);
 
@@ -44,6 +44,7 @@ export class AvailabilityService {
 
     const confirmedBookings = await this.prisma.booking.findMany({
       where: {
+        ownerId,
         bookingDate: parseCalendarDate(dto.date),
         status: BookingStatus.CONFIRMED,
       },
@@ -91,9 +92,10 @@ export class AvailabilityService {
     };
   }
 
-  private async getIntervalItems(catalogItemIds: string[]) {
+  private async getIntervalItems(catalogItemIds: string[], ownerId: string) {
     const catalogItems = await this.prisma.catalogItem.findMany({
       where: {
+        ownerId,
         id: { in: catalogItemIds },
       },
       select: {

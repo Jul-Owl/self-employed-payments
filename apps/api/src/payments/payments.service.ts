@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { TbankPaymentsService } from '../providers/tbank/tbank-payments.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,17 +10,16 @@ export class PaymentsService {
     private readonly tbankPaymentsService: TbankPaymentsService,
   ) {}
 
-  async createPayment(body: any) {
-    const paymentLink = await this.prisma.paymentLink.findUnique({
+  async createPayment(body: any, ownerId: string) {
+    const paymentLink = await this.prisma.paymentLink.findFirst({
       where: {
         id: body.paymentLinkId,
+        ownerId,
       },
     });
 
     if (!paymentLink) {
-      return {
-        error: 'Payment link not found',
-      };
+      throw new NotFoundException('Payment link not found');
     }
 
     const providerPayment =
@@ -42,8 +41,9 @@ export class PaymentsService {
     });
   }
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.payment.findMany({
+      where: { paymentLink: { ownerId } },
       orderBy: {
         createdAt: 'desc',
       },

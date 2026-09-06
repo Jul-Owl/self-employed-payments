@@ -5,6 +5,7 @@ import {
   OfficialCalendarDayType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+const OWNER_ID = 'owner-id';
 import { CalendarService } from './calendar.service';
 
 describe('CalendarService', () => {
@@ -33,21 +34,32 @@ describe('CalendarService', () => {
     calendarDateOverride,
   } as unknown as PrismaService;
   const service = new CalendarService(prisma);
+  const upsertWeeklyWorkingHours = (dayOfWeek: DayOfWeek, dto: Parameters<CalendarService['upsertWeeklyWorkingHours']>[1]) =>
+    service.upsertWeeklyWorkingHours(dayOfWeek, dto, OWNER_ID);
+  const createCalendarDateOverride = (dto: Parameters<CalendarService['createCalendarDateOverride']>[0]) =>
+    service.createCalendarDateOverride(dto, OWNER_ID);
+  const resolveDay = (date: string) => service.resolveDay(date, OWNER_ID);
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('stores a working weekly interval', async () => {
-    await service.upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
+    await upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
       isWorking: true,
       startMinutes: 540,
       endMinutes: 1080,
     });
 
     expect(weeklyWorkingHours.upsert).toHaveBeenCalledWith({
-      where: { dayOfWeek: DayOfWeek.MONDAY },
+      where: {
+        ownerId_dayOfWeek: {
+          ownerId: OWNER_ID,
+          dayOfWeek: DayOfWeek.MONDAY,
+        },
+      },
       create: {
+        ownerId: OWNER_ID,
         dayOfWeek: DayOfWeek.MONDAY,
         isWorking: true,
         startMinutes: 540,
@@ -62,7 +74,7 @@ describe('CalendarService', () => {
   });
 
   it('clears weekly hours for a non-working day', async () => {
-    await service.upsertWeeklyWorkingHours(DayOfWeek.SUNDAY, {
+    await upsertWeeklyWorkingHours(DayOfWeek.SUNDAY, {
       isWorking: false,
       startMinutes: 540,
       endMinutes: 1080,
@@ -84,7 +96,7 @@ describe('CalendarService', () => {
     { startMinutes: 0, endMinutes: 1440 },
   ])('rejects minutes outside the allowed range', async (interval) => {
     await expect(
-      service.upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
+      upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
         isWorking: true,
         ...interval,
       }),
@@ -93,7 +105,7 @@ describe('CalendarService', () => {
 
   it('rejects a weekly interval with startMinutes greater than or equal to endMinutes', async () => {
     await expect(
-      service.upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
+      upsertWeeklyWorkingHours(DayOfWeek.MONDAY, {
         isWorking: true,
         startMinutes: 600,
         endMinutes: 600,
@@ -103,7 +115,7 @@ describe('CalendarService', () => {
 
   it('rejects OPEN override without hours', async () => {
     await expect(
-      service.createCalendarDateOverride({
+      createCalendarDateOverride({
         date: '2026-08-10',
         type: CalendarDateOverrideType.OPEN,
       }),
@@ -120,7 +132,7 @@ describe('CalendarService', () => {
       }),
     );
 
-    await service.createCalendarDateOverride({
+    await createCalendarDateOverride({
       date: '2026-08-10',
       type: CalendarDateOverrideType.CLOSED,
       startMinutes: 540,
@@ -147,7 +159,7 @@ describe('CalendarService', () => {
       endMinutes: 1080,
     });
 
-    await expect(service.resolveDay('2026-08-10')).resolves.toEqual({
+    await expect(resolveDay('2026-08-10')).resolves.toEqual({
       date: '2026-08-10',
       isWorking: false,
       startMinutes: null,
@@ -167,7 +179,7 @@ describe('CalendarService', () => {
       type: OfficialCalendarDayType.HOLIDAY,
     });
 
-    await expect(service.resolveDay('2026-08-10')).resolves.toEqual({
+    await expect(resolveDay('2026-08-10')).resolves.toEqual({
       date: '2026-08-10',
       isWorking: true,
       startMinutes: 600,
@@ -190,7 +202,7 @@ describe('CalendarService', () => {
       endMinutes: 1080,
     });
 
-    await expect(service.resolveDay('2026-08-10')).resolves.toEqual({
+    await expect(resolveDay('2026-08-10')).resolves.toEqual({
       date: '2026-08-10',
       isWorking: false,
       startMinutes: null,
@@ -211,7 +223,7 @@ describe('CalendarService', () => {
       endMinutes: 1080,
     });
 
-    await expect(service.resolveDay('2026-08-10')).resolves.toEqual({
+    await expect(resolveDay('2026-08-10')).resolves.toEqual({
       date: '2026-08-10',
       isWorking: true,
       startMinutes: 540,
@@ -232,7 +244,7 @@ describe('CalendarService', () => {
       endMinutes: null,
     });
 
-    await expect(service.resolveDay('2026-08-09')).resolves.toEqual({
+    await expect(resolveDay('2026-08-09')).resolves.toEqual({
       date: '2026-08-09',
       isWorking: false,
       startMinutes: null,
@@ -257,7 +269,7 @@ describe('CalendarService', () => {
       endMinutes: 1080,
     });
 
-    await expect(service.resolveDay('2026-08-10')).resolves.toEqual(
+    await expect(resolveDay('2026-08-10')).resolves.toEqual(
       expect.objectContaining({
         isWorking: false,
         resolvedBy: 'OVERRIDE',

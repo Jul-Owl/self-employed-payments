@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { TransactionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -6,8 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 export class TransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.transaction.findMany({
+      where: { ownerId },
       orderBy: {
         createdAt: 'desc',
       },
@@ -23,9 +24,9 @@ export class TransactionsService {
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.transaction.findUnique({
-      where: { id },
+  async findOne(id: string, ownerId: string) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id, ownerId },
       include: {
         receipt: true,
         paymentLink: true,
@@ -36,9 +37,15 @@ export class TransactionsService {
         },
       },
     });
+
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with id "${id}" was not found`);
+    }
+
+    return transaction;
   }
 
-  create(body: any) {
+  create(body: any, ownerId: string) {
     const grossAmount = Number(body.grossAmount ?? body.amount ?? 0);
     const taxAmount = Number(body.taxAmount ?? Math.round(grossAmount * 0.04));
     const platformFeeAmount = Number(
@@ -50,6 +57,7 @@ export class TransactionsService {
 
     return this.prisma.transaction.create({
       data: {
+        ownerId,
         title: body.title,
         client: body.client ?? 'Новый клиент',
         grossAmount,

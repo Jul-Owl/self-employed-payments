@@ -6,6 +6,14 @@
 
 Собран локальный рабочий прототип сервиса для самозанятых.
 
+## Пользователи и ownership
+
+Реализовано: один `User` соответствует одному бизнесу MVP. Owner-facing API
+требует действующую server-side session из HttpOnly cookie; пароль хранится
+только как bcrypt hash. CatalogItem, Calendar configuration, Booking,
+PaymentLink и Transaction изолированы по `ownerId`. Public booking использует
+`/book/[publicSlug]`; slug определяет бизнес, а не передаётся как ownerId.
+
 ## Архитектура
 
 ### Frontend

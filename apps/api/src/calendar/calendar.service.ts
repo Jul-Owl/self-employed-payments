@@ -40,8 +40,10 @@ interface OverrideInput {
 export class CalendarService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findWeeklyWorkingHours() {
-    const records = await this.prisma.weeklyWorkingHours.findMany();
+  async findWeeklyWorkingHours(ownerId: string) {
+    const records = await this.prisma.weeklyWorkingHours.findMany({
+      where: { ownerId },
+    });
 
     return records.sort(
       (left, right) =>
@@ -52,6 +54,7 @@ export class CalendarService {
   async upsertWeeklyWorkingHours(
     dayOfWeek: DayOfWeek,
     dto: WeeklyWorkingHoursDto,
+    ownerId: string,
   ) {
     const data = this.normalizeWorkingInterval({
       isWorking: dto.isWorking,
@@ -60,8 +63,9 @@ export class CalendarService {
     });
 
     return this.prisma.weeklyWorkingHours.upsert({
-      where: { dayOfWeek },
+      where: { ownerId_dayOfWeek: { ownerId, dayOfWeek } },
       create: {
+        ownerId,
         dayOfWeek,
         ...data,
       },
@@ -122,15 +126,19 @@ export class CalendarService {
     return this.serializeOfficialCalendarDay(record);
   }
 
-  async findCalendarDateOverrides() {
+  async findCalendarDateOverrides(ownerId: string) {
     const records = await this.prisma.calendarDateOverride.findMany({
+      where: { ownerId },
       orderBy: { date: 'asc' },
     });
 
     return records.map((record) => this.serializeCalendarDateOverride(record));
   }
 
-  async createCalendarDateOverride(dto: CreateCalendarDateOverrideDto) {
+  async createCalendarDateOverride(
+    dto: CreateCalendarDateOverrideDto,
+    ownerId: string,
+  ) {
     const data = this.normalizeOverride({
       type: dto.type,
       startMinutes: dto.startMinutes ?? null,
@@ -140,6 +148,7 @@ export class CalendarService {
       () =>
         this.prisma.calendarDateOverride.create({
           data: {
+            ownerId,
             date: parseCalendarDate(dto.date),
             ...data,
             reason: dto.reason ?? null,
@@ -154,8 +163,9 @@ export class CalendarService {
   async updateCalendarDateOverride(
     id: string,
     dto: UpdateCalendarDateOverrideDto,
+    ownerId: string,
   ) {
-    const existing = await this.findCalendarDateOverride(id);
+    const existing = await this.findCalendarDateOverride(id, ownerId);
     const data = this.normalizeOverride({
       type: dto.type ?? existing.type,
       startMinutes:
@@ -181,8 +191,8 @@ export class CalendarService {
     return this.serializeCalendarDateOverride(record);
   }
 
-  async removeCalendarDateOverride(id: string) {
-    await this.findCalendarDateOverride(id);
+  async removeCalendarDateOverride(id: string, ownerId: string) {
+    await this.findCalendarDateOverride(id, ownerId);
     const record = await this.prisma.calendarDateOverride.delete({
       where: { id },
     });
@@ -190,28 +200,37 @@ export class CalendarService {
     return this.serializeCalendarDateOverride(record);
   }
 
-  async resolveDay(dateValue: string) {
-    return this.resolveDayForClient(this.prisma, dateValue);
+  async resolveDay(dateValue: string, ownerId: string) {
+    return this.resolveDayForClient(this.prisma, dateValue, ownerId);
   }
 
   async resolveDayInTransaction(
     tx: Prisma.TransactionClient,
     dateValue: string,
+    ownerId: string,
   ) {
-    return this.resolveDayForClient(tx, dateValue);
+    return this.resolveDayForClient(tx, dateValue, ownerId);
   }
 
   private async resolveDayForClient(
     client: Prisma.TransactionClient | PrismaService,
     dateValue: string,
+    ownerId: string,
   ) {
     const date = parseCalendarDate(dateValue);
     const [override, officialCalendarDay, weeklyWorkingHours] =
       await Promise.all([
-        client.calendarDateOverride.findUnique({ where: { date } }),
+        client.calendarDateOverride.findUnique({
+          where: { ownerId_date: { ownerId, date } },
+        }),
         client.officialCalendarDay.findUnique({ where: { date } }),
         client.weeklyWorkingHours.findUnique({
-          where: { dayOfWeek: this.dayOfWeekForDate(date) },
+          where: {
+            ownerId_dayOfWeek: {
+              ownerId,
+              dayOfWeek: this.dayOfWeekForDate(date),
+            },
+          },
         }),
       ]);
 
@@ -268,9 +287,9 @@ export class CalendarService {
     return record;
   }
 
-  private async findCalendarDateOverride(id: string) {
-    const record = await this.prisma.calendarDateOverride.findUnique({
-      where: { id },
+  private async findCalendarDateOverride(id: string, ownerId: string) {
+    const record = await this.prisma.calendarDateOverride.findFirst({
+      where: { id, ownerId },
     });
 
     if (!record) {

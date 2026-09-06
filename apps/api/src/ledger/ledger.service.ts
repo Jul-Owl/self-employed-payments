@@ -60,8 +60,9 @@ export class LedgerService {
     });
   }
 
-  findAll() {
+  findAll(ownerId: string) {
     return this.prisma.ledgerEntry.findMany({
+      where: { transaction: { ownerId } },
       orderBy: {
         createdAt: 'desc',
       },
@@ -71,9 +72,10 @@ export class LedgerService {
     });
   }
 
-  async getTotalReceived(): Promise<number> {
+  async getTotalReceived(ownerId: string): Promise<number> {
     const result = await this.prisma.ledgerEntry.aggregate({
       where: {
+        transaction: { ownerId },
         type: LedgerEntryType.CLIENT_PAYMENT_RECEIVED,
       },
       _sum: {
@@ -83,9 +85,10 @@ export class LedgerService {
     return result._sum.amount ?? 0;
   }
 
-  async getTaxReserve(): Promise<number> {
+  async getTaxReserve(ownerId: string): Promise<number> {
     const result = await this.prisma.ledgerEntry.aggregate({
       where: {
+        transaction: { ownerId },
         type: LedgerEntryType.TAX_RESERVED,
       },
       _sum: {
@@ -95,9 +98,10 @@ export class LedgerService {
     return result._sum.amount ?? 0;
   }
 
-  async getPlatformFeeReserve(): Promise<number> {
+  async getPlatformFeeReserve(ownerId: string): Promise<number> {
     const result = await this.prisma.ledgerEntry.aggregate({
       where: {
+        transaction: { ownerId },
         type: LedgerEntryType.PLATFORM_FEE_RESERVED,
       },
       _sum: {
@@ -107,9 +111,10 @@ export class LedgerService {
     return result._sum.amount ?? 0;
   }
 
-  async getAvailableBalance(): Promise<number> {
+  async getAvailableBalance(ownerId: string): Promise<number> {
     const result = await this.prisma.ledgerEntry.aggregate({
       where: {
+        transaction: { ownerId },
         type: LedgerEntryType.SELF_EMPLOYED_BALANCE,
       },
       _sum: {
