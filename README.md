@@ -105,6 +105,91 @@ http://localhost:3000
 адрес frontend, измените `WEB_URL` в том же файле. После этого перезапустите
 API. После изменения `apps/web/.env.local` перезапустите frontend.
 
+## Deployment environments
+
+The project has three isolated environments:
+
+| Environment | Web URL | API URL | Database |
+| --- | --- | --- | --- |
+| LOCAL | `http://localhost:3000` | `http://localhost:3002` | local PostgreSQL |
+| TEST | `https://test.self-made.online` | `https://api-test.self-made.online` | separate TEST PostgreSQL database |
+| PRODUCTION | `https://self-made.online` | `https://api.self-made.online` | separate PROD PostgreSQL database |
+
+Set `APP_ENV` to `local`, `test`, or `production`. `NODE_ENV=production` is
+used for production Node builds; `APP_ENV` distinguishes TEST from PROD.
+TEST and PROD must never share a `DATABASE_URL`.
+
+### API environment
+
+Configure these variables in the API deployment environment, never in Git:
+
+```text
+APP_ENV=test|production
+NODE_ENV=production
+DATABASE_URL=postgresql://...
+WEB_URL=https://the-corresponding-web-origin
+PORT=3001
+```
+
+`DATABASE_URL` and `WEB_URL` fail fast when missing outside LOCAL. `WEB_URL`
+is the single allowed CORS origin and credentialed cookie requests are enabled.
+Session cookies are HttpOnly and SameSite=Lax; they are Secure in TEST and
+PRODUCTION.
+
+### Web environment
+
+Configure this at build time for the separate web deployment:
+
+```text
+APP_ENV=test|production
+NEXT_PUBLIC_API_URL=https://the-corresponding-api-origin
+```
+
+`NEXT_PUBLIC_API_URL` is required outside LOCAL. Public booking is always
+`/book/[slug]`; `/book` redirects to the local `dev-owner` compatibility route
+only in LOCAL and returns not-found in TEST and PRODUCTION.
+
+### Deployment commands
+
+Install dependencies in each deployment build:
+
+```powershell
+pnpm install --frozen-lockfile
+```
+
+Deploy API migrations and build/start the API:
+
+```powershell
+pnpm --filter api migrate:deploy
+pnpm --filter api build
+pnpm --filter api start:prod
+```
+
+Use `prisma migrate deploy` only for TEST and PRODUCTION. Never use
+`prisma migrate dev`, `prisma db push`, or a database reset there.
+
+Build/start the web application:
+
+```powershell
+pnpm --filter web build
+pnpm --filter web start
+```
+
+Infrastructure checks may call `GET /health` for process liveness and
+`GET /health/ready` for PostgreSQL readiness. Neither endpoint returns
+connection details or credentials.
+
+### Data and privacy
+
+Production personal data, production backups, and any external logs or storage
+that contain personal data must stay in Russian infrastructure. Never copy
+production personal data into TEST unless it has been anonymized. Secrets and
+database credentials must not be committed.
+
+Whether Organizer of Information Dissemination (ORI) / so-called
+Yarovaya-law obligations apply is a separate legal and compliance question;
+this document makes no determination.
+
 ## Основные API endpoints
 
 ```text

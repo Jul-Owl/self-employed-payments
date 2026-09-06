@@ -1,5 +1,12 @@
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.APP_ENV === "test" || process.env.APP_ENV === "production"
+    ? (() => {
+        throw new Error(
+          "NEXT_PUBLIC_API_URL must be set when APP_ENV is test or production",
+        );
+      })()
+    : "http://localhost:3002");
 
 export type CatalogItemType = "SERVICE" | "PRODUCT";
 export type CatalogItemUnit = "PIECE" | "HOUR" | "MINUTE" | "DAY" | "SET";

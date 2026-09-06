@@ -2,18 +2,18 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { getRuntimeConfiguration } from './config/app-environment';
 
 async function bootstrap() {
+  const { port, webUrl } = getRuntimeConfiguration();
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:3000',
+    origin: webUrl,
     credentials: true,
   });
-
-  const port = Number(process.env.PORT ?? 3001);
 
   await app.listen(port);
 

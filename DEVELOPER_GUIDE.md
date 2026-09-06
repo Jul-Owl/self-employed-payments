@@ -48,6 +48,15 @@ npx pnpm --filter api exec prisma generate
 
 Только потом запускать backend.
 
+For TEST and PRODUCTION use only:
+
+```powershell
+pnpm --filter api migrate:deploy
+```
+
+Do not use `prisma migrate dev`, `prisma db push`, or a database reset outside
+local development.
+
 ---
 
 # Backend
@@ -67,6 +76,14 @@ SameSite=Lax cookie. Passwords are stored only as bcrypt hashes. Never accept
 `ownerId` from an API request: owner scope comes from the validated session,
 or, for public booking only, from the resolved `publicSlug`. Foreign owner
 resources must be treated as not found.
+
+## Deployment configuration
+
+`APP_ENV` is `local`, `test`, or `production`; it distinguishes TEST from PROD.
+Outside LOCAL, `DATABASE_URL`, `WEB_URL`, and the web build-time
+`NEXT_PUBLIC_API_URL` must be explicitly configured. TEST and PROD must use
+different PostgreSQL databases. Do not add infrastructure credentials to the
+repository.
 
 ## Booking notifications
 
