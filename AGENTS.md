@@ -81,7 +81,9 @@ netAmount = grossAmount - taxAmount - platformFeeAmount
 
 Note: 1% platform fee is a temporary MVP test rule. The base monetization models, Commission (PERCENT) and Subscription, will be implemented in the Monetization stage; HYBRID is their combination. During Subscription, platformFeeAmount will be set to 0 for customer payments, with monthly fees passing through a separate money flow to the platform settlement account.
 
-The current `simulate-payment` endpoint temporarily replaces the future bank webhook.
+The current `simulate-payment` endpoint temporarily replaces external payment
+confirmation. For future T-Bank Nominal Accounts, incoming money confirmation
+uses polling and explicit payer identification, not webhooks.
 
 ## Product principles
 
@@ -342,14 +344,23 @@ The future banking integration is based on a nominal account.
 The bank integration must include:
 
 * beneficiary management;
-* payment events;
-* webhooks;
+* polling of unidentified incoming transactions and explicit payer identification;
 * payouts;
-* idempotency;
-* raw webhook event storage;
+* application-generated idempotency keys for critical POST operations;
 * external identifiers;
 * authentication and certificates;
 * reconciliation.
+
+T-Bank Nominal Accounts do not provide webhooks for incoming/identified
+payments, deal/stage statuses, or payout results. Preserve a generated
+idempotency key when retrying the same business operation after a timeout or
+network failure. `WebhookEvent` may remain for other providers/products that
+actually support callbacks; it must not model Nominal Accounts events.
+
+For percentage commission, the intended first MVP settlement is an immediate
+per-deal transfer to the platform settlement account through a `Lite_contact`
+beneficiary. This does not replace the Commission, Subscription, and Hybrid
+monetization domain models.
 
 Bank-specific logic should be isolated behind an adapter or integration module.
 
@@ -375,6 +386,17 @@ Expected future fields:
 * retryCount.
 
 Receipt failures must not silently disappear.
+
+The internal Receipt entity is not evidence of a real NPD/FNS receipt. T-Bank
+Nominal Accounts cannot register NPD receipts, and T-Bank "Выплаты
+самозанятым" cannot be combined with Nominal Accounts. A separate compliant
+NPD/FNS provider/API is a P0 dependency; no real-money production pilot may
+start until this path is resolved.
+
+The Nominal Accounts sandbox does not persist data and is not a production-like
+E2E simulation of money movement, deal lifecycle, incoming transactions, or
+payouts. Method-level T-Bank documentation is the assumed API specification;
+do not assume a separate OpenAPI/Swagger artifact without verification.
 
 ## Payouts
 

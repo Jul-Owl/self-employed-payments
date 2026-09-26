@@ -119,6 +119,9 @@ Prisma используется для:
 
 Назначение: чек по операции.
 
+Это внутренняя запись MVP, а не подтверждение реального чека НПД/ФНС.
+Внешняя регистрация НПД/ФНС не реализована и остаётся отдельной P0-зависимостью.
+
 Поля:
 
 * id;
@@ -273,7 +276,8 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 * связи между сущностями;
 * Ledger как источник истины для финансовых показателей;
 * Dashboard рассчитывает баланс через агрегацию LedgerEntry;
-* simulate-payment и payment.succeeded (webhook) являются атомарными операциями;
+* simulate-payment и существующий generic payment.succeeded webhook являются
+  атомарными операциями; этот webhook не относится к будущим Nominal Accounts;
 * отображение налога, комиссии и суммы к выводу;
 * frontend получает данные через backend API.
 * создание, редактирование и архивирование CatalogItem через API и frontend.
@@ -284,7 +288,29 @@ Commission (PERCENT) и Subscription; Hybrid является их комбин�
 
 `POST /payment-links/:id/simulate-payment`
 
-Этот endpoint временно заменяет будущий webhook банка.
+Этот endpoint временно заменяет подтверждение оплаты внешним провайдером.
+Для будущих Nominal Accounts T-Bank это будет polling списка неопознанных
+входящих операций с явной идентификацией плательщика, а не webhook.
+
+## Подтверждённые ограничения T-Bank Nominal Accounts
+
+Интеграция с Nominal Accounts **не реализована**. T-Bank не предоставляет
+webhook для входящих/идентифицированных платежей, статусов deal/stage или
+результата выплат. Входящие деньги требуют polling-а и операции identify.
+Критичные POST должны использовать генерируемые приложением idempotency keys;
+повтор после timeout/network failure сохраняет ключ той же бизнес-операции.
+
+Для процентной комиссии первым MVP-вариантом зафиксирован перевод комиссии в
+каждой сделке на расчётный счёт платформы через beneficiary `Lite_contact`.
+Самозанятый получает выплату по модели beneficiary → requisites → deal/stage
+→ identification → stage completion/payout.
+
+Sandbox не хранит данные и не является persistent E2E-моделью движения денег,
+сделок, поступлений или выплат. Real-money pilot заблокирован: Nominal
+Accounts не регистрируют НПД/ФНС-чеки, а продукт «Выплаты самозанятым» не
+совместим с Nominal Accounts. Нужен отдельный compliant NPD/FNS provider/API.
+
+Подробности: [T-Bank Nominal Accounts](./docs/architecture/TBANK_NOMINAL_ACCOUNTS.md).
 
 ## Важные продуктовые решения
 

@@ -88,7 +88,14 @@ POST /v1/payouts
 
 ---
 
-## Webhooks
+## Webhooks — target API, not Nominal Accounts
 
-POST /v1/webhooks/tbank/payments  
-POST /v1/webhooks/tbank/payouts  
+POST /v1/webhooks/tbank/payments
+POST /v1/webhooks/tbank/payouts
+
+These target endpoints must not be interpreted as Nominal Accounts callbacks:
+T-Bank confirmed that Nominal Accounts provide no webhooks for payment,
+deal/stage, or payout events. The Nominal Accounts integration instead requires
+polling and explicit identification; no Nominal-specific webhook endpoint is
+planned. These endpoints remain applicable only if a separate T-Bank product or
+another provider with verified callback support is integrated.

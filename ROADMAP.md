@@ -255,14 +255,26 @@ Hybrid не является самостоятельной базовой мо�
 * номинальный счёт;
 * бенефициары;
 * реальные входящие платежи;
-* webhook;
+* polling неопознанных входящих операций и явная идентификация плательщика;
 * mTLS;
-* идемпотентность;
-* хранение исходных банковских событий;
+* application-generated idempotency keys для критичных POST и повторов;
+* внешние идентификаторы и reconciliation;
 * распределение денег;
-* перевод комиссии платформе.
+* перевод комиссии платформе в каждой сделке через `Lite_contact` как первый
+  MVP-вариант;
+* beneficiary, requisites, deal, stage, deponent/recipient, подтверждение
+  сделки, идентификация поступления, завершение stage и payout.
+
+T-Bank Nominal Accounts не предоставляют webhook для этих сценариев. Их sandbox
+не хранит данные и не заменяет persistent E2E-тестирование. Подробности:
+[T-Bank Nominal Accounts](./docs/architecture/TBANK_NOMINAL_ACCOUNTS.md).
 
 ## Этап 10. Чеки и налоговый контур
+
+**P0 blocker:** Nominal Accounts не регистрируют чеки НПД/ФНС, а «Выплаты
+самозанятым» не совмещаются с Nominal Accounts. До выбора отдельного compliant
+provider/API, юридического и технического решения real-money pilot заблокирован.
+Внутренний `Receipt` не является реальным чеком ФНС.
 
 * PENDING;
 * ISSUED;

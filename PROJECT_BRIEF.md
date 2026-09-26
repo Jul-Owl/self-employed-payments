@@ -153,6 +153,12 @@ CatalogItem используется:
 
 # Текущее состояние
 
+> Важно: `Receipt` в текущем MVP — внутренняя сущность. Интеграция с НПД/ФНС
+> для реального чека не реализована и является отдельной P0-зависимостью;
+> real-money pilot до её решения заблокирован. Подтверждённые ограничения
+> будущего Nominal Accounts API описаны в
+> [T-Bank Nominal Accounts](./docs/architecture/TBANK_NOMINAL_ACCOUNTS.md).
+
 Реализовано:
 
 - Payment Links;
