@@ -5,7 +5,7 @@ FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 FROM base AS dependencies
 
@@ -22,6 +22,7 @@ WORKDIR /app
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY --from=dependencies /app/apps/web/node_modules ./apps/web/node_modules
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web ./apps/web
 
 # This public value is embedded into the browser bundle by `next build`.
