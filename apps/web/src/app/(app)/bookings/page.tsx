@@ -2,19 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Booking, fetchBookings } from "@/lib/api";
+import { Booking, fetchAuthenticatedUser, fetchBookings } from "@/lib/api";
+import { formatLocalDateOnly, localDateFromDateOnly } from "@/lib/date-only";
 
-const labels = { CONFIRMED: "Подтверждена", COMPLETED: "Завершена", CANCELLED: "Отменена" };
-const iso = (date: Date) => date.toISOString().slice(0, 10);
+const labels = { CONFIRMED: "Запланирована", COMPLETED: "Услуга оказана", NO_SHOW: "Клиент не пришёл", CANCELLED: "Отменена" };
+const iso = formatLocalDateOnly;
 const time = (value: number) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+const bookingLabel = (booking: Booking) => booking.status === "CONFIRMED" && new Date() >= new Date(`${booking.bookingDate}T${time(booking.serviceEndMinutes)}:00`) ? "Прошедшая" : labels[booking.status];
 
 export default function BookingsPage() {
   const today = iso(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
-  const [month, setMonth] = useState(() => new Date(`${today}T00:00:00`));
+  const [month, setMonth] = useState(() => localDateFromDateOnly(today));
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publicSlug, setPublicSlug] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState("");
   const monthBounds = useMemo(() => {
     const start = new Date(month.getFullYear(), month.getMonth(), 1);
     const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
@@ -26,6 +30,8 @@ export default function BookingsPage() {
     catch { setError("Не удалось загрузить записи."); } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, [monthBounds.start, monthBounds.end]);
+  useEffect(() => { void fetchAuthenticatedUser().then((user) => setPublicSlug(user.publicSlug)).catch(() => setPublicSlug(null)); }, []);
+  const publicUrl = publicSlug && typeof window !== "undefined" ? `${window.location.origin}/book/${publicSlug}` : null;
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -36,6 +42,7 @@ export default function BookingsPage() {
 
   return <main>
     <header className="mb-5 flex items-start justify-between gap-3"><div><p className="text-sm text-slate-500">Календарь</p><h1 className="mt-1 text-2xl font-semibold">Записи</h1></div><Link href="/bookings/new" className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">+ Новая запись</Link></header>
+    {publicUrl && <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><h2 className="font-semibold">Ссылка для записи клиентов</h2><p className="mt-1 break-all text-sm text-slate-600">{publicUrl}</p><div className="mt-3 flex gap-2"><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicUrl); setCopyState("Скопировано"); } catch { setCopyState("Не удалось скопировать"); } }} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium">Скопировать</button><a href={publicUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">Открыть страницу записи</a></div>{copyState && <p className="mt-2 text-xs text-slate-600">{copyState}</p>}</section>}
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4 flex items-center justify-between"><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>←</button><h2 className="font-semibold">{month.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}</h2><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>→</button></div>
       <button onClick={() => { setSelectedDate(today); setMonth(new Date(`${today}T00:00:00`)); }} className="mb-3 text-sm font-medium underline">Сегодня</button>
@@ -46,7 +53,7 @@ export default function BookingsPage() {
       {loading && <p className="rounded-2xl bg-white p-4 text-sm text-slate-600">Загружаем записи…</p>}
       {error && <div className="rounded-2xl bg-white p-4"><p className="text-sm text-rose-600">{error}</p><button onClick={load} className="mt-2 text-sm underline">Повторить</button></div>}
       {!loading && !error && selectedBookings.length === 0 && <div className="rounded-2xl bg-white p-4"><p className="text-sm text-slate-600">На этот день записей нет.</p><Link href="/bookings/new" className="mt-3 inline-block text-sm underline">Создать запись</Link></div>}
-      {selectedBookings.map((booking) => <Link key={booking.id} href={`/bookings/${booking.id}`} className={`block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 ${booking.status === "CANCELLED" ? "opacity-60" : ""}`}><div className="flex justify-between"><b>{time(booking.startMinutes)}</b><span className="text-xs">{labels[booking.status]}</span></div><p className="mt-2 font-medium">{booking.customerName}</p><p className="text-sm text-slate-600">{booking.items.map((item) => item.title).join(" + ")}</p><p className="mt-2 text-sm font-medium">{booking.totalAmount} ₽</p></Link>)}
+      {selectedBookings.map((booking) => <Link key={booking.id} href={`/bookings/${booking.id}`} className={`block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 ${booking.status === "CANCELLED" ? "opacity-60" : ""}`}><div className="flex justify-between"><b>{time(booking.startMinutes)}</b><span className="text-xs">{bookingLabel(booking)}</span></div><p className="mt-2 font-medium">{booking.customerName}</p><p className="text-sm text-slate-600">{booking.items.map((item) => item.title).join(" + ")}</p><p className="mt-2 text-sm font-medium">{booking.totalAmount} ₽</p></Link>)}
     </section>
   </main>;
 }

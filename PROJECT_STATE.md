@@ -209,6 +209,36 @@ Calendar остаётся концептуальной областью; отд�
 * слоты не хранятся в БД, а рассчитываются по Calendar, активным CatalogItem и
   CONFIRMED Booking;
 * PRODUCT не влияет на длительность и зарезервированный интервал;
+
+### Booking visit outcome and owner UX
+
+Owner-facing `CONFIRMED` is **«Запланирована»**, not client confirmation.
+Client confirmation is a future independent concept. A scheduled booking whose
+service end has passed is shown as **«Прошедшая»** as a derived UI state; the
+owner is never required to classify it. `NO_SHOW` is an optional exception and
+`COMPLETED` means **«Услуга оказана»**. Rendering can be manual after service
+end, or automatic only when the booking is not cancelled/no-show,
+`totalAmount > 0`, and successful Booking payments total at least
+`totalAmount`. `requiredPaymentAmount` only expresses the initial prepayment
+condition; it is not the rendered-service trigger. Payment state and visit
+outcome remain separate.
+
+The MVP business timezone is centrally defined as `Europe/Moscow` until an
+owner timezone setting exists.
+
+Weekly schedule is saved atomically as a full week. Official calendar days are
+shared read-only reference data for owners; owner overrides take precedence.
+The owner public link is derived from `User.publicSlug`; public success offers
+a safe downloadable ICS reminder. PRODUCT remains an owner catalog item for
+future sale composition and is not permitted in public online booking.
+
+Calendar UI shows official holidays and working days as read-only reference
+information. An owner may create an OPEN/CLOSED override or remove it with
+«Вернуть по умолчанию». Loading and maintaining the shared official reference
+calendar remains a controlled operational/admin responsibility; no external
+holiday scraper is part of the MVP. The web workspace has no test runner, so
+date-only and ICS utilities are validated by focused Node checks plus the
+production Next build until a deliberately chosen web test setup is introduced.
 * Calendar остаётся источником истины для рабочего дня и его overrides.
 
 ### Public Online Booking

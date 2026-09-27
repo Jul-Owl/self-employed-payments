@@ -23,6 +23,7 @@ import { CreateOfficialCalendarDayDto } from './dto/create-official-calendar-day
 import { UpdateCalendarDateOverrideDto } from './dto/update-calendar-date-override.dto';
 import { UpdateOfficialCalendarDayDto } from './dto/update-official-calendar-day.dto';
 import { WeeklyWorkingHoursDto } from './dto/weekly-working-hours.dto';
+import { UpdateWeeklyWorkingHoursDto } from './dto/update-weekly-working-hours.dto';
 
 interface WorkingIntervalInput {
   isWorking: boolean;
@@ -71,6 +72,21 @@ export class CalendarService {
       },
       update: data,
     });
+  }
+
+  async replaceWeeklyWorkingHours(dto: UpdateWeeklyWorkingHoursDto, ownerId: string) {
+    const expectedDays = Object.values(DayOfWeek);
+    if (new Set(dto.days.map((day) => day.dayOfWeek)).size !== expectedDays.length || dto.days.some((day) => !expectedDays.includes(day.dayOfWeek))) {
+      throw new BadRequestException('A complete week with each day exactly once is required');
+    }
+    const days = dto.days.map((day) => ({
+      dayOfWeek: day.dayOfWeek,
+      ...this.normalizeWorkingInterval({ isWorking: day.isWorking, startMinutes: day.startMinutes ?? null, endMinutes: day.endMinutes ?? null }),
+    }));
+    return this.prisma.$transaction(async (tx) => Promise.all(days.map((day) => tx.weeklyWorkingHours.upsert({
+      where: { ownerId_dayOfWeek: { ownerId, dayOfWeek: day.dayOfWeek } },
+      create: { ownerId, ...day }, update: { isWorking: day.isWorking, startMinutes: day.startMinutes, endMinutes: day.endMinutes },
+    }))));
   }
 
   async findOfficialCalendarDays() {

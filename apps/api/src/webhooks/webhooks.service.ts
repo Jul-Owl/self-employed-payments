@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { BookingService } from '../booking/booking.service';
 
 type PaymentContext = {
   ownerId: string;
@@ -23,6 +24,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledgerService: LedgerService,
+    private readonly bookingService: BookingService,
   ) {}
 
   async handlePaymentWebhook(payload: any) {
@@ -128,10 +130,7 @@ export class WebhooksService {
 
         if (paymentContext.bookingId && bookingPaymentFailed) {
           await tx.booking.updateMany({
-            where: {
-              id: paymentContext.bookingId,
-              paymentId: paymentContext.paymentId ?? undefined,
-            },
+            where: { id: paymentContext.bookingId },
             data: { paymentStatus: BookingPaymentStatus.FAILED },
           });
         }
@@ -292,7 +291,6 @@ export class WebhooksService {
         await tx.booking.updateMany({
           where: {
             id: paymentContext.bookingId,
-            paymentId: paymentContext.paymentId ?? undefined,
           },
           data: { paymentStatus: BookingPaymentStatus.PAID },
         });
@@ -337,6 +335,11 @@ export class WebhooksService {
       };
     });
 
+    if (result.transaction && this.prisma.payment) {
+      const payment = await this.prisma.payment.findUnique({ where: { externalPaymentId }, select: { bookingId: true } });
+      if (payment?.bookingId) await this.bookingService.reconcilePaidBooking(payment.bookingId);
+    }
+
     return {
       duplicated: false,
       ...result,
@@ -367,7 +370,6 @@ export class WebhooksService {
             select: {
               id: true,
               ownerId: true,
-              requiredPaymentAmount: true,
             },
           },
         },
@@ -379,7 +381,7 @@ export class WebhooksService {
           paymentLinkId: null,
           bookingId: payment.booking.id,
           paymentId: payment.id,
-          expectedAmount: payment.booking.requiredPaymentAmount,
+          expectedAmount: payment.amount,
         } satisfies PaymentContext;
       }
 

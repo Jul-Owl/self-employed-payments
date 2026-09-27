@@ -9,6 +9,7 @@ import { BookingService } from '../booking/booking.service';
 import { CreateBookingDto } from '../booking/dto/create-booking.dto';
 import { CatalogService } from '../catalog/catalog.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CatalogItemType } from '@prisma/client';
 
 @Injectable()
 export class PublicBookingService {
@@ -44,6 +45,17 @@ export class PublicBookingService {
       throw new BadRequestException(
         'Public bookings cannot override CatalogItem price or duration',
       );
+    }
+
+    const serviceCount = await this.prisma.catalogItem.count({
+      where: {
+        ownerId,
+        id: { in: dto.items.map((item) => item.catalogItemId) },
+        type: CatalogItemType.SERVICE,
+      },
+    });
+    if (serviceCount !== new Set(dto.items.map((item) => item.catalogItemId)).size) {
+      throw new BadRequestException('Public booking accepts SERVICE items only');
     }
 
     return this.bookingService.create(dto, ownerId);

@@ -6,6 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { TbankModule } from '../providers/tbank/tbank.module';
 import { BookingController } from './booking.controller';
 import { BookingService } from './booking.service';
+import { BookingOutcomeReconciliationService } from './booking-outcome-reconciliation.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { BookingService } from './booking.service';
     TbankModule,
   ],
   controllers: [BookingController],
-  providers: [BookingService],
+  providers: [BookingService, BookingOutcomeReconciliationService],
   exports: [BookingService],
 })
 export class BookingModule {}

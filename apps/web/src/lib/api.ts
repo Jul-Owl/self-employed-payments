@@ -80,7 +80,7 @@ export type Booking = {
   customerPhone?: string | null;
   customerEmail?: string | null;
   comment?: string | null;
-  status: "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  status: "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
   serviceEndMinutes: number;
   items: Array<{
     id: string;
@@ -222,8 +222,12 @@ export function cancelBooking(id: string) {
   return bookingRequest<Booking>(`/bookings/${id}/cancel`, { method: "PATCH" });
 }
 
-export function completeBooking(id: string) {
-  return bookingRequest<Booking>(`/bookings/${id}/complete`, { method: "PATCH" });
+export function markBookingRendered(id: string) {
+  return bookingRequest<Booking>(`/bookings/${id}/rendered`, { method: "PATCH" });
+}
+
+export function markBookingNoShow(id: string) {
+  return bookingRequest<Booking>(`/bookings/${id}/no-show`, { method: "PATCH" });
 }
 
 export type BookingNotification = {
@@ -669,4 +673,21 @@ export type LedgerEntry = {
 
 export function fetchLedgerEntries() {
   return bookingRequest<LedgerEntry[]>("/ledger", { cache: "no-store" });
+}
+
+export function replaceWeeklyWorkingHours(days: Array<WeeklyWorkingHoursPayload & { dayOfWeek: DayOfWeek }>) {
+  return catalogRequest<WeeklyWorkingHours[]>("/calendar/weekly", {
+    method: "PUT",
+    body: JSON.stringify({ days }),
+  });
+}
+
+export type OfficialCalendarDay = {
+  id: string;
+  date: string;
+  type: "HOLIDAY" | "WORKING_DAY";
+};
+
+export function fetchOfficialCalendarDays() {
+  return catalogRequest<OfficialCalendarDay[]>("/calendar/official-days", { cache: "no-store" });
 }

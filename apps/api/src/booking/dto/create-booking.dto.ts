@@ -1,7 +1,8 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsInt,
+  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -47,9 +48,12 @@ export class CreateBookingDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   customerPhone?: string;
 
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsEmail()
   @IsString()
   customerEmail?: string;
 

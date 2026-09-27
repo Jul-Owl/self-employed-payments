@@ -14,6 +14,8 @@ import {
   fetchPublicBookableServices,
   PublicBookableService,
 } from "@/lib/api";
+import { formatLocalDateOnly } from "@/lib/date-only";
+import { downloadBookingIcs } from "@/lib/booking-ics";
 
 function formatPrice(value: number) {
   return `${value} ₽`;
@@ -166,7 +168,7 @@ export default function BookingForm({
           quantity: 1,
         })),
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim() || undefined,
+        customerPhone: customerPhone.replace(/[\s().-]/g, "") || undefined,
         customerEmail: customerEmail.trim() || undefined,
         comment: comment.trim() || undefined,
       };
@@ -227,6 +229,7 @@ export default function BookingForm({
             </div>
             <p className="text-sm text-slate-600">Клиент: {booking.customerName}</p>
           </div>
+          {!owner && <button type="button" onClick={() => downloadBookingIcs({ date: booking.bookingDate, startMinutes: booking.startMinutes, endMinutes: booking.serviceEndMinutes, titles: booking.items.map((item) => item.title) })} className="mt-4 w-full rounded-xl bg-slate-900 px-3 py-3 text-sm font-medium text-white">Добавить в календарь</button>}
         </section>
       </main>
     );
@@ -253,16 +256,15 @@ export default function BookingForm({
             const selectedIndex = selectedServiceIds.indexOf(service.id);
 
             return (
-              <button
+              <label
                 key={service.id}
-                type="button"
-                onClick={() => toggleService(service.id)}
-                className={`w-full rounded-xl border p-3 text-left ${
+                className={`block w-full cursor-pointer rounded-xl border p-3 text-left transition hover:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900 ${
                   selectedIndex >= 0
                     ? "border-slate-900 bg-slate-50"
                     : "border-slate-200"
                 }`}
               >
+                <input type="checkbox" checked={selectedIndex >= 0} onChange={() => toggleService(service.id)} className="sr-only" />
                 <div className="flex justify-between gap-3">
                   <span className="font-medium text-slate-900">{service.title}</span>
                   <span className="text-sm font-medium text-slate-900">
@@ -276,12 +278,13 @@ export default function BookingForm({
                 {service.description && (
                   <p className="mt-1 text-sm text-slate-600">{service.description}</p>
                 )}
+                <p className="mt-2 text-xs font-medium text-slate-700">{selectedIndex >= 0 ? "✓ Выбрано" : "Выбрать"}</p>
                 {prepaymentLabel(service) && (
                   <p className="mt-2 text-xs text-slate-500">
                     {prepaymentLabel(service)}
                   </p>
                 )}
-              </button>
+              </label>
             );
           })}
         </section>
@@ -290,7 +293,7 @@ export default function BookingForm({
           <h2 className="font-semibold text-slate-900">{owner ? "2. Дата" : "2. Выберите дату"}</h2>
           <input
             type="date"
-            min={new Date().toISOString().slice(0, 10)}
+            min={formatLocalDateOnly(new Date())}
             value={date}
             onChange={(event) => setDate(event.target.value)}
             className="input mt-3"
@@ -341,8 +344,8 @@ export default function BookingForm({
           <form onSubmit={submitBooking} className="mt-4 space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <h2 className="font-semibold text-slate-900">{owner ? "4. Клиент" : "4. Ваши данные"}</h2>
             <input required value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={owner ? "Имя клиента" : "Ваше имя"} className="input" />
-            <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Телефон" className="input" />
-            <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="input" />
+            <input type="tel" inputMode="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value.replace(/[^\d+\s().-]/g, ""))} placeholder="Телефон" className="input" />
+            <input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="Email" className="input" />
             <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Комментарий (необязательно)" className="input min-h-20" />
 
             <div className="rounded-xl bg-slate-50 p-3 text-sm">

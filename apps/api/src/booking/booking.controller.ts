@@ -69,8 +69,13 @@ export class BookingController {
     return this.bookingService.cancel(id, user.id);
   }
 
-  @Patch(':id/complete')
-  complete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.bookingService.complete(id, user.id);
+  @Patch(':id/rendered')
+  markRendered(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingService.markRendered(id, user.id);
+  }
+
+  @Patch(':id/no-show')
+  markNoShow(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingService.markNoShow(id, user.id);
   }
 }

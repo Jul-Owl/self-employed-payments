@@ -91,6 +91,7 @@ enum CalendarDateOverrideType {
 enum BookingStatus {
   CONFIRMED
   COMPLETED
+  NO_SHOW
   CANCELLED
 }
 
@@ -239,6 +240,7 @@ model Booking {
   customerEmail         String?
   comment               String?
   completedAt           DateTime?
+  noShowAt              DateTime?
   cancelledAt           DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
@@ -247,8 +249,7 @@ model Booking {
   items BookingItem[]
   notifications Notification[]
 
-  paymentId String?  @unique
-  payment   Payment? @relation(fields: [paymentId], references: [id])
+  payments  Payment[]
 
   @@index([ownerId])
   @@index([status])
@@ -333,13 +334,15 @@ model Payment {
   paymentLinkId     String?
   paymentLink       PaymentLink?  @relation(fields: [paymentLinkId], references: [id])
 
-  booking           Booking?
+  bookingId          String?
+  booking            Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
   @@index([provider])
   @@index([paymentLinkId])
+  @@index([bookingId])
 }
 
 model Transaction {

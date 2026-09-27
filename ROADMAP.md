@@ -81,6 +81,12 @@
 * unit (только для PRODUCT)
 * paymentPolicy (только для SERVICE, опционально)
 * prepaymentValue (только для SERVICE, опционально)
+
+### Planned import/export scope
+
+P1: Catalog CSV export, create-only Catalog CSV import with preview/row
+validation, and Booking CSV export by date range/status. P2: client import
+after the Client domain exists and competitor-specific migration importers.
 * category (опционально)
 * createdAt
 * updatedAt

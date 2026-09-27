@@ -37,10 +37,12 @@ describe('WebhooksService booking payments', () => {
   const ledgerService = {
     createTransactionEntries: jest.fn(),
   };
+  const bookingService = { reconcilePaidBooking: jest.fn() };
 
   const service = new WebhooksService(
     prisma as unknown as PrismaService,
     ledgerService as unknown as LedgerService,
+    bookingService as never,
   );
 
   beforeEach(() => {
@@ -94,7 +96,7 @@ describe('WebhooksService booking payments', () => {
       }),
     );
     expect(tx.booking.updateMany).toHaveBeenCalledWith({
-      where: { id: 'booking-1', paymentId: 'payment-1' },
+      where: { id: 'booking-1' },
       data: { paymentStatus: BookingPaymentStatus.PAID },
     });
   });

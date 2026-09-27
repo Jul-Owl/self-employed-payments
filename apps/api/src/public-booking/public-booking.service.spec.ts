@@ -9,7 +9,8 @@ describe('PublicBookingService', () => {
   const user = {
     findUnique: jest.fn(),
   };
-  const prisma = { user } as unknown as PrismaService;
+  const catalogItem = { count: jest.fn() };
+  const prisma = { user, catalogItem } as unknown as PrismaService;
   const catalogService = {
     findBookableServices: jest.fn(),
   } as unknown as CatalogService;
@@ -29,6 +30,7 @@ describe('PublicBookingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     user.findUnique.mockResolvedValue({ id: 'owner-id' });
+    catalogItem.count.mockResolvedValue(1);
   });
 
   it('loads catalog services only for the owner resolved from the public slug', async () => {

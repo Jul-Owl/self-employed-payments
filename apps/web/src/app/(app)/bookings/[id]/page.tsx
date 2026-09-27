@@ -8,14 +8,15 @@ import {
   Booking,
   BookingNotification,
   cancelBooking,
-  completeBooking,
+  markBookingNoShow,
+  markBookingRendered,
   fetchBooking,
   fetchBookingNotifications,
   fetchRescheduleAvailability,
   rescheduleBooking,
 } from "@/lib/api";
 
-const labels = { CONFIRMED: "Подтверждена", COMPLETED: "Завершена", CANCELLED: "Отменена" };
+const labels = { CONFIRMED: "Запланирована", COMPLETED: "Услуга оказана", NO_SHOW: "Клиент не пришёл", CANCELLED: "Отменена" };
 const time = (value: number) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
 const notificationLabels = {
   BOOKING_CONFIRMATION: "Подтверждение записи",
@@ -62,11 +63,11 @@ export default function BookingDetailsPage() {
     try { setSlot(null); setError(""); setAvailability(await fetchRescheduleAvailability(id, date)); }
     catch { setAvailability(null); setError("Не удалось получить свободное время."); }
   }
-  async function transition(action: "cancel" | "complete") {
-    if (!booking || !window.confirm(`${action === "cancel" ? "Отменить" : "Завершить"} запись клиента ${booking.customerName}?`)) return;
+  async function transition(action: "cancel" | "rendered" | "no-show") {
+    if (!booking || !window.confirm(`${action === "cancel" ? "Отменить" : action === "rendered" ? "Отметить услугу оказанной для" : "Отметить неявку клиента"} ${booking.customerName}?`)) return;
     try {
       setSaving(true);
-      setBooking(action === "cancel" ? await cancelBooking(id) : await completeBooking(id));
+      setBooking(action === "cancel" ? await cancelBooking(id) : action === "rendered" ? await markBookingRendered(id) : await markBookingNoShow(id));
     } catch { setError("Не удалось изменить статус записи."); } finally { setSaving(false); }
   }
   async function submitReschedule() {
@@ -110,7 +111,7 @@ export default function BookingDetailsPage() {
       </div>
     </section>
     {booking.status === "CONFIRMED" && <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><h2 className="font-semibold">Перенести запись</h2><input type="date" value={rescheduleDate} onChange={(event) => { setRescheduleDate(event.target.value); void loadRescheduleAvailability(event.target.value); }} className="input mt-3" />{availability && <div className="mt-3 grid grid-cols-3 gap-2">{availability.slots.map((item) => <button key={item.startMinutes} type="button" onClick={() => setSlot(item.startMinutes)} className={`rounded-xl px-2 py-2 text-sm ${slot === item.startMinutes ? "bg-slate-900 text-white" : "bg-slate-100"}`}>{time(item.startMinutes)}</button>)}</div>}<button type="button" disabled={slot === null || saving} onClick={submitReschedule} className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-3 text-sm font-medium text-white disabled:opacity-50">Подтвердить перенос</button></section>}
-    {booking.status === "CONFIRMED" && <div className="grid grid-cols-2 gap-3"><button disabled={saving} onClick={() => void transition("cancel")} className="rounded-xl bg-rose-50 px-3 py-3 text-sm font-medium text-rose-700">Отменить</button><button disabled={saving} onClick={() => void transition("complete")} className="rounded-xl bg-slate-900 px-3 py-3 text-sm font-medium text-white">Завершить</button></div>}
+    {booking.status === "CONFIRMED" && <div className="grid grid-cols-3 gap-3"><button disabled={saving} onClick={() => void transition("cancel")} className="rounded-xl bg-rose-50 px-3 py-3 text-sm font-medium text-rose-700">Отменить</button><button disabled={saving} onClick={() => void transition("rendered")} className="rounded-xl bg-slate-900 px-3 py-3 text-sm font-medium text-white">Услуга оказана</button><button disabled={saving} onClick={() => void transition("no-show")} className="rounded-xl bg-amber-50 px-3 py-3 text-sm font-medium text-amber-800">Клиент не пришёл</button></div>}
     {error && <p className="text-sm text-rose-600">{error}</p>}
     <button onClick={() => router.push("/bookings")} className="text-sm underline">Назад к записям</button>
   </main>;

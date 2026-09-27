@@ -22,6 +22,7 @@ import {
 } from '../calendar/calendar-date.helper';
 import { PrismaService } from '../prisma/prisma.service';
 import { calculateRequiredPaymentAmount } from './booking-payment.helper';
+import { bookingMomentInBusinessTimezone } from './booking-time.helper';
 import {
   BookingIntervals,
   calculateBookingIntervals,
@@ -87,7 +88,7 @@ export class BookingService {
             : undefined,
         status: dto.status,
       },
-      include: { items: true, payment: true },
+      include: { items: true, payments: true },
       orderBy: [{ bookingDate: 'asc' }, { startMinutes: 'asc' }],
     });
 
@@ -101,7 +102,7 @@ export class BookingService {
   ) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, ownerId },
-      include: { items: true, payment: true },
+      include: { items: true, payments: true },
     });
 
     if (!booking) {
@@ -172,7 +173,7 @@ export class BookingService {
   async findOne(id: string, ownerId: string) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, ownerId },
-      include: { items: true, payment: true },
+      include: { items: true, payments: true },
     });
 
     if (!booking) {
@@ -211,18 +212,6 @@ export class BookingService {
         intervals.reservedEndMinutes,
       );
 
-      const bookingPayment =
-        requiredPaymentAmount > 0
-          ? await tx.payment.create({
-              data:
-                providerPayment ??
-                (providerPayment = await this.createBookingProviderPayment(
-                  requiredPaymentAmount,
-                  dto.customerName,
-                )),
-            })
-          : null;
-
       const createdBooking = await tx.booking.create({
         data: {
           ownerId,
@@ -236,16 +225,34 @@ export class BookingService {
               ? BookingPaymentStatus.PENDING
               : BookingPaymentStatus.NOT_REQUIRED,
           customerName: dto.customerName.trim(),
-          customerPhone: this.normalizeOptionalText(dto.customerPhone),
+          customerPhone: this.normalizePhone(dto.customerPhone),
           customerEmail: this.normalizeOptionalText(dto.customerEmail),
           comment: this.normalizeOptionalText(dto.comment),
           items: {
             create: snapshots,
           },
-          paymentId: bookingPayment?.id,
         },
-        include: { items: true, payment: true },
+        include: { items: true, payments: true },
       });
+
+      if (requiredPaymentAmount > 0) {
+        const provider =
+          providerPayment ??
+          (providerPayment = await this.createBookingProviderPayment(
+            requiredPaymentAmount,
+            dto.customerName,
+          ));
+        await tx.payment.create({
+          data: {
+            provider: provider.provider,
+            externalPaymentId: provider.externalPaymentId,
+            paymentUrl: provider.paymentUrl,
+            amount: provider.amount,
+            status: provider.status,
+            bookingId: createdBooking.id,
+          },
+        });
+      }
 
       await this.notificationService.createForBookingCreated(
         tx,
@@ -262,7 +269,7 @@ export class BookingService {
     const booking = await this.withSerializableRetry(async (tx) => {
       const booking = await tx.booking.findFirst({
         where: { id, ownerId },
-        include: { items: true, payment: true },
+        include: { items: true, payments: true },
       });
 
       if (!booking) {
@@ -304,7 +311,7 @@ export class BookingService {
           startMinutes: dto.startMinutes,
           ...intervals,
         },
-        include: { items: true, payment: true },
+        include: { items: true, payments: true },
       });
 
       await this.notificationService.createForBookingRescheduled(
@@ -326,28 +333,67 @@ export class BookingService {
     );
   }
 
+  async markRendered(id: string, ownerId: string) {
+    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.COMPLETED, true);
+  }
+
+  /** Internal compatibility helper; no user-facing generic complete endpoint exists. */
   async complete(id: string, ownerId: string) {
-    return this.transitionToTerminalStatus(
-      id,
-      ownerId,
-      BookingStatus.COMPLETED,
-    );
+    return this.transitionToTerminalStatus(id, ownerId, BookingStatus.COMPLETED);
+  }
+
+  async markNoShow(id: string, ownerId: string) {
+    const booking = await this.prisma.booking.findFirst({ where: { id, ownerId } });
+    if (!booking) throw new NotFoundException(`Booking with id "${id}" was not found`);
+    if (booking.status !== BookingStatus.CONFIRMED) throw new ConflictException('Only scheduled bookings can be marked as no-show');
+    if (new Date() < this.bookingMoment(booking.bookingDate, booking.startMinutes)) {
+      throw new ConflictException('A booking cannot be marked as no-show before it starts');
+    }
+    const updated = await this.prisma.booking.update({
+      where: { id }, data: { status: BookingStatus.NO_SHOW, noShowAt: new Date() }, include: { items: true, payments: true },
+    });
+    return this.serializeBooking(updated);
+  }
+
+  /** Idempotent, side-effect-free financially: used after a successful payment. */
+  async reconcilePaidBooking(id: string, now = new Date()) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id }, include: { payments: true },
+    });
+    if (!booking || booking.status !== BookingStatus.CONFIRMED || booking.totalAmount <= 0) return false;
+    if (now < this.bookingMoment(booking.bookingDate, booking.serviceEndMinutes)) return false;
+    const paid = booking.payments.reduce((sum, payment) => payment.status === PaymentStatus.SUCCEEDED ? sum + payment.amount : sum, 0);
+    if (paid < booking.totalAmount) return false;
+    const result = await this.prisma.booking.updateMany({
+      where: { id, status: BookingStatus.CONFIRMED },
+      data: { status: BookingStatus.COMPLETED, completedAt: now },
+    });
+    if (result.count) await this.notificationService.cancelForBookingCompleted(this.prisma, id, now);
+    return result.count === 1;
   }
 
   private async transitionToTerminalStatus(
     id: string,
     ownerId: string,
     status: BookingStatus,
+    requireServiceEnd = false,
   ) {
     const timestampField =
       status === BookingStatus.CANCELLED ? 'cancelledAt' : 'completedAt';
     const booking = await this.withSerializableRetry(async (tx) => {
       const now = new Date();
+      if (requireServiceEnd) {
+        const source = await tx.booking.findFirst({ where: { id, ownerId } });
+        if (!source) throw new NotFoundException(`Booking with id "${id}" was not found`);
+        if (now < this.bookingMoment(source.bookingDate, source.serviceEndMinutes)) {
+          throw new ConflictException('A service can be marked as rendered only after its scheduled end');
+        }
+      }
       const result = await tx.booking.updateMany({
         where: {
           id,
           ownerId,
-          status: BookingStatus.CONFIRMED,
+          status: status === BookingStatus.COMPLETED ? { in: [BookingStatus.CONFIRMED, BookingStatus.NO_SHOW] } : BookingStatus.CONFIRMED,
         },
         data: {
           status,
@@ -371,7 +417,7 @@ export class BookingService {
 
       const updatedBooking = await tx.booking.findFirst({
         where: { id, ownerId },
-        include: { items: true, payment: true },
+        include: { items: true, payments: true },
       });
 
       if (!updatedBooking) {
@@ -552,7 +598,7 @@ export class BookingService {
       where: {
         ownerId,
         bookingDate,
-        status: BookingStatus.CONFIRMED,
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.NO_SHOW] },
         id: excludedBookingId ? { not: excludedBookingId } : undefined,
         reservedStartMinutes: { lt: reservedEndMinutes },
         reservedEndMinutes: { gt: reservedStartMinutes },
@@ -567,8 +613,12 @@ export class BookingService {
   }
 
   private validateCustomerContacts(dto: CreateBookingDto) {
+    const phone = this.normalizePhone(dto.customerPhone);
+    if (dto.customerPhone && !phone) {
+      throw new BadRequestException('customerPhone must be a valid international phone number');
+    }
     if (
-      !this.normalizeOptionalText(dto.customerPhone) &&
+      !phone &&
       !this.normalizeOptionalText(dto.customerEmail)
     ) {
       throw new BadRequestException(
@@ -581,6 +631,17 @@ export class BookingService {
     const normalized = value?.trim();
 
     return normalized ? normalized : null;
+  }
+
+  private normalizePhone(value: string | undefined) {
+    const trimmed = value?.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.replace(/[\s().-]/g, '');
+    return /^\+?[1-9]\d{6,14}$/.test(normalized) ? normalized : null;
+  }
+
+  private bookingMoment(bookingDate: Date, minutes: number) {
+    return bookingMomentInBusinessTimezone(bookingDate, minutes);
   }
 
   private async withSerializableRetry<T>(
@@ -646,13 +707,14 @@ export class BookingService {
     T extends {
       bookingDate: Date;
       requiredPaymentAmount?: number;
-      payment?: { amount: number; status: PaymentStatus } | null;
+      payments?: Array<{ amount: number; status: PaymentStatus }>;
     },
   >(booking: T) {
-    const paidAmount =
-      booking.payment?.status === PaymentStatus.SUCCEEDED
-        ? booking.payment.amount
-        : 0;
+    const paidAmount = (booking.payments ?? []).reduce(
+      (total, payment) =>
+        payment.status === PaymentStatus.SUCCEEDED ? total + payment.amount : total,
+      0,
+    );
 
     return {
       ...booking,

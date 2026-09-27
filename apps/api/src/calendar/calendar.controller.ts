@@ -4,9 +4,9 @@ import {
   Delete,
   Get,
   Param,
-  ParseEnumPipe,
   Patch,
   Post,
+  ParseEnumPipe,
   Put,
   UsePipes,
   UseGuards,
@@ -18,10 +18,9 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CalendarService } from './calendar.service';
 import { CreateCalendarDateOverrideDto } from './dto/create-calendar-date-override.dto';
-import { CreateOfficialCalendarDayDto } from './dto/create-official-calendar-day.dto';
 import { UpdateCalendarDateOverrideDto } from './dto/update-calendar-date-override.dto';
-import { UpdateOfficialCalendarDayDto } from './dto/update-official-calendar-day.dto';
 import { WeeklyWorkingHoursDto } from './dto/weekly-working-hours.dto';
+import { UpdateWeeklyWorkingHoursDto } from './dto/update-weekly-working-hours.dto';
 
 @Controller('calendar')
 @UsePipes(
@@ -51,28 +50,17 @@ export class CalendarController {
     return this.calendarService.upsertWeeklyWorkingHours(dayOfWeek, dto, user.id);
   }
 
+  @Put('weekly')
+  @UseGuards(AuthGuard)
+  replaceWeeklyWorkingHours(@Body() dto: UpdateWeeklyWorkingHoursDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.calendarService.replaceWeeklyWorkingHours(dto, user.id);
+  }
+
   @Get('official-days')
   findOfficialCalendarDays() {
     return this.calendarService.findOfficialCalendarDays();
   }
 
-  @Post('official-days')
-  createOfficialCalendarDay(@Body() dto: CreateOfficialCalendarDayDto) {
-    return this.calendarService.createOfficialCalendarDay(dto);
-  }
-
-  @Patch('official-days/:id')
-  updateOfficialCalendarDay(
-    @Param('id') id: string,
-    @Body() dto: UpdateOfficialCalendarDayDto,
-  ) {
-    return this.calendarService.updateOfficialCalendarDay(id, dto);
-  }
-
-  @Delete('official-days/:id')
-  removeOfficialCalendarDay(@Param('id') id: string) {
-    return this.calendarService.removeOfficialCalendarDay(id);
-  }
 
   @Get('overrides')
   @UseGuards(AuthGuard)

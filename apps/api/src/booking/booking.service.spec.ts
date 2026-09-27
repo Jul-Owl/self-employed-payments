@@ -161,7 +161,7 @@ describe('BookingService', () => {
           ],
         },
       }),
-      include: { items: true, payment: true },
+      include: { items: true, payments: true },
     });
 
     expect(prisma.$transaction).toHaveBeenCalledWith(
@@ -180,7 +180,6 @@ describe('BookingService', () => {
         data: expect.objectContaining({
           requiredPaymentAmount: 0,
           paymentStatus: 'NOT_REQUIRED',
-          paymentId: undefined,
         }),
       }),
     );
@@ -213,7 +212,6 @@ describe('BookingService', () => {
         data: expect.objectContaining({
           requiredPaymentAmount: 250,
           paymentStatus: 'PENDING',
-          paymentId: 'payment-id',
           items: {
             create: [
               expect.objectContaining({
@@ -484,7 +482,7 @@ describe('BookingService', () => {
         reservedStartMinutes: 690,
         reservedEndMinutes: 775,
       },
-      include: { items: true, payment: true },
+      include: { items: true, payments: true },
     });
     expect(catalogItem.findMany).not.toHaveBeenCalled();
   });

@@ -10,11 +10,14 @@ import {
   DayOfWeek,
   deleteCalendarDateOverride,
   fetchCalendarDateOverrides,
+  fetchOfficialCalendarDays,
   fetchWeeklyWorkingHours,
   resolveCalendarDay,
   updateCalendarDateOverride,
+  replaceWeeklyWorkingHours,
   upsertWeeklyWorkingHours,
   WeeklyWorkingHours,
+  OfficialCalendarDay,
 } from "@/lib/api";
 
 type WeekdayForm = {
@@ -124,6 +127,7 @@ export default function CalendarPage() {
     createDefaultWeek,
   );
   const [overrides, setOverrides] = useState<CalendarDateOverride[]>([]);
+  const [officialDays, setOfficialDays] = useState<OfficialCalendarDay[]>([]);
   const [overrideForm, setOverrideForm] =
     useState<OverrideForm>(initialOverrideForm);
   const [editingOverrideId, setEditingOverrideId] = useState<string | null>(
@@ -134,6 +138,7 @@ export default function CalendarPage() {
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [savedWeek, setSavedWeek] = useState<Record<DayOfWeek, WeekdayForm>>(createDefaultWeek);
   const [savingDay, setSavingDay] = useState<DayOfWeek | null>(null);
   const [savingOverride, setSavingOverride] = useState(false);
   const [resolving, setResolving] = useState(false);
@@ -144,13 +149,17 @@ export default function CalendarPage() {
     try {
       setLoading(true);
       setError("");
-      const [weeklyWorkingHours, dateOverrides] = await Promise.all([
+      const [weeklyWorkingHours, dateOverrides, official] = await Promise.all([
         fetchWeeklyWorkingHours(),
         fetchCalendarDateOverrides(),
+        fetchOfficialCalendarDays(),
       ]);
 
-      setWeek(toWeekForm(weeklyWorkingHours));
+      const loadedWeek = toWeekForm(weeklyWorkingHours);
+      setWeek(loadedWeek);
+      setSavedWeek(loadedWeek);
       setOverrides(dateOverrides);
+      setOfficialDays(official);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -191,6 +200,30 @@ export default function CalendarPage() {
           : { isWorking: false },
       );
       await loadCalendar();
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setSavingDay(null);
+    }
+  }
+
+  async function saveWholeWeek() {
+    const days = weekdays.map(({ value }) => {
+      const form = week[value];
+      const startMinutes = timeToMinutes(form.startTime);
+      const endMinutes = timeToMinutes(form.endTime);
+      if (form.isWorking && (startMinutes === null || endMinutes === null || startMinutes >= endMinutes)) return null;
+      return { dayOfWeek: value, isWorking: form.isWorking, ...(form.isWorking ? { startMinutes: startMinutes!, endMinutes: endMinutes! } : {}) };
+    });
+    if (days.some((day) => day === null)) {
+      setError("Проверьте время начала и окончания каждого рабочего дня.");
+      return;
+    }
+    try {
+      setSavingDay("MONDAY");
+      setError("");
+      await replaceWeeklyWorkingHours(days as Array<{ dayOfWeek: DayOfWeek; isWorking: boolean; startMinutes?: number; endMinutes?: number }>);
+      setSavedWeek(week);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -276,6 +309,41 @@ export default function CalendarPage() {
     }
   }
 
+  async function applyQuickOverride(date: string, type: CalendarDateOverrideType) {
+    const existing = overrides.find((override) => override.date === date);
+    const payload: CalendarDateOverridePayload = type === "OPEN"
+      ? { date, type, startMinutes: 540, endMinutes: 1080, reason: "Ручное изменение графика" }
+      : { date, type, reason: "Ручное изменение графика" };
+    try {
+      setSavingOverride(true);
+      setError("");
+      if (existing) await updateCalendarDateOverride(existing.id, payload);
+      else await createCalendarDateOverride(payload);
+      await loadCalendar();
+      if (resolutionDate === date) setResolution(await resolveCalendarDay(date));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setSavingOverride(false);
+    }
+  }
+
+  async function restoreDefault(date: string) {
+    const existing = overrides.find((override) => override.date === date);
+    if (!existing) return;
+    try {
+      setSavingOverride(true);
+      setError("");
+      await deleteCalendarDateOverride(existing.id);
+      await loadCalendar();
+      if (resolutionDate === date) setResolution(await resolveCalendarDay(date));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setSavingOverride(false);
+    }
+  }
+
   async function checkDate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!resolutionDate) {
@@ -304,6 +372,7 @@ export default function CalendarPage() {
           Настройте рабочую неделю и исключения для отдельных дат.
         </p>
       </header>
+      {!loading && <div className="mb-4 flex items-center gap-3"><button type="button" disabled={savingDay !== null || JSON.stringify(week) === JSON.stringify(savedWeek)} onClick={() => void saveWholeWeek()} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{savingDay ? "Сохраняем неделю..." : "Сохранить неделю"}</button><button type="button" disabled={savingDay !== null || JSON.stringify(week) === JSON.stringify(savedWeek)} onClick={() => setWeek(savedWeek)} className="text-sm underline disabled:opacity-50">Отменить изменения</button></div>}
 
       {error && (
         <p className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
@@ -367,19 +436,20 @@ export default function CalendarPage() {
                       }
                     />
                   </div>
-                  <button
-                    type="button"
-                    disabled={savingDay === value}
-                    onClick={() => saveWeekday(value)}
-                    className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-50"
-                  >
-                    {savingDay === value ? "Сохраняем..." : "Сохранить"}
-                  </button>
                 </article>
               );
             })}
           </div>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-base font-semibold">Официальный календарь</h2>
+        <p className="mb-3 text-sm text-slate-600">Справочные государственные выходные и рабочие дни доступны только для просмотра. Личное исключение имеет приоритет.</p>
+        {officialDays.length === 0 ? <CardText text="Официальные дни пока не загружены." /> : <div className="space-y-3">{officialDays.map((day) => {
+          const override = overrides.find((item) => item.date === day.date);
+          return <article key={day.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{formatDate(day.date)}</p><p className="mt-1 text-sm text-slate-600">{day.type === "HOLIDAY" ? "Официальный выходной — по умолчанию запись закрыта" : "Официальный рабочий день"}</p>{override && <p className="mt-1 text-xs font-medium text-slate-700">Ваше исключение: {override.type === "OPEN" ? "работать" : "выходной"}</p>}</div>{override ? <button type="button" disabled={savingOverride} onClick={() => void restoreDefault(day.date)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium">Вернуть по умолчанию</button> : <button type="button" disabled={savingOverride} onClick={() => void applyQuickOverride(day.date, day.type === "HOLIDAY" ? "OPEN" : "CLOSED")} className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white">{day.type === "HOLIDAY" ? "Работать в этот день" : "Сделать выходным"}</button>}</div></article>;
+        })}</div>}
       </section>
 
       <section className="mt-8">
@@ -554,6 +624,7 @@ export default function CalendarPage() {
                 Источник: {resolution.resolvedBy}
               </p>
               <p className="mt-1">Правило: {resolution.resolvedRule}</p>
+              {overrides.some((override) => override.date === resolution.date) ? <button type="button" disabled={savingOverride} onClick={() => void restoreDefault(resolution.date)} className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-medium ring-1 ring-slate-200">Вернуть по умолчанию</button> : <button type="button" disabled={savingOverride} onClick={() => void applyQuickOverride(resolution.date, resolution.isWorking ? "CLOSED" : "OPEN")} className="mt-3 rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white">{resolution.isWorking ? "Сделать выходным" : "Работать в этот день"}</button>}
             </div>
           )}
         </form>
