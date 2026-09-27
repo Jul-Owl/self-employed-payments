@@ -9,7 +9,11 @@ import {
   CatalogItemType,
   CatalogItemUnit,
   createCatalogItem,
+  exportCatalogCsv,
   fetchCatalogItems,
+  importCatalogCsv,
+  previewCatalogCsv,
+  CatalogImportPreview,
   updateCatalogItem,
 } from "@/lib/api";
 
@@ -60,6 +64,26 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [csv, setCsv] = useState("");
+  const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  function downloadCsv(content: string, name: string) {
+    const url = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
+  }
+
+  async function previewImport(file: File) {
+    try { setError(""); const text = await file.text(); setCsv(text); setPreview(await previewCatalogCsv(text)); }
+    catch (requestError) { setPreview(null); setError(requestError instanceof Error ? requestError.message : "Не удалось проверить CSV"); }
+  }
+
+  async function confirmImport() {
+    if (!preview || preview.invalidRows.length) return;
+    try { setImporting(true); setError(""); await importCatalogCsv(csv); setPreview(null); setCsv(""); await loadCatalog(); }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Не удалось импортировать CSV"); }
+    finally { setImporting(false); }
+  }
 
   async function loadCatalog() {
     try {
@@ -184,6 +208,7 @@ export default function CatalogPage() {
           Создавайте позиции для будущих продаж и записей.
         </p>
       </header>
+      <section className="mb-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div className="flex flex-wrap gap-3"><button type="button" onClick={async () => { try { downloadCsv(await exportCatalogCsv(), "catalog.csv"); } catch { setError("Не удалось выгрузить CSV"); } }} className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">Экспорт CSV</button><label className="cursor-pointer rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium">Импорт CSV<input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewImport(file); }} /></label></div>{preview && <div className="mt-4 text-sm"><p>Верных строк: {preview.validRows.length}. Ошибок: {preview.invalidRows.length}.</p>{preview.invalidRows.map((row) => <p key={row.rowNumber} className="mt-1 text-rose-600">Строка {row.rowNumber}: {row.errors.join("; ")}</p>)}<button type="button" disabled={importing || preview.validRows.length === 0 || preview.invalidRows.length > 0} onClick={() => void confirmImport()} className="mt-3 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">{importing ? "Импортируем..." : "Подтвердить импорт"}</button><p className="mt-2 text-xs text-slate-500">Импорт создаёт только новые позиции. Если есть ошибки, ничего не записывается.</p></div>}</section>
 
       <form
         onSubmit={saveCatalogItem}

@@ -74,6 +74,11 @@ export class BookingController {
     return this.bookingService.markRendered(id, user.id);
   }
 
+  @Get('export/csv')
+  exportCsv(@Query() dto: ListBookingsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingService.exportCsv(dto, user.id);
+  }
+
   @Patch(':id/no-show')
   markNoShow(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.bookingService.markNoShow(id, user.id);

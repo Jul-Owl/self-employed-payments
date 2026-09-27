@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Booking, fetchAuthenticatedUser, fetchBookings } from "@/lib/api";
+import { Booking, exportBookingsCsv, fetchAuthenticatedUser, fetchBookings } from "@/lib/api";
 import { formatLocalDateOnly, localDateFromDateOnly } from "@/lib/date-only";
 
 const labels = { CONFIRMED: "Запланирована", COMPLETED: "Услуга оказана", NO_SHOW: "Клиент не пришёл", CANCELLED: "Отменена" };
@@ -32,6 +32,7 @@ export default function BookingsPage() {
   useEffect(() => { void load(); }, [monthBounds.start, monthBounds.end]);
   useEffect(() => { void fetchAuthenticatedUser().then((user) => setPublicSlug(user.publicSlug)).catch(() => setPublicSlug(null)); }, []);
   const publicUrl = publicSlug && typeof window !== "undefined" ? `${window.location.origin}/book/${publicSlug}` : null;
+  async function exportCsv() { try { const content = await exportBookingsCsv({ dateFrom: monthBounds.start, dateTo: monthBounds.end }); const url = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = `bookings-${monthBounds.start}-${monthBounds.end}.csv`; link.click(); URL.revokeObjectURL(url); } catch { setError("Не удалось выгрузить CSV"); } }
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -41,7 +42,7 @@ export default function BookingsPage() {
   const selectedBookings = bookings.filter((booking) => booking.bookingDate === selectedDate);
 
   return <main>
-    <header className="mb-5 flex items-start justify-between gap-3"><div><p className="text-sm text-slate-500">Календарь</p><h1 className="mt-1 text-2xl font-semibold">Записи</h1></div><Link href="/bookings/new" className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">+ Новая запись</Link></header>
+    <header className="mb-5 flex items-start justify-between gap-3"><div><p className="text-sm text-slate-500">Календарь</p><h1 className="mt-1 text-2xl font-semibold">Записи</h1></div><div className="flex gap-2"><button type="button" onClick={() => void exportCsv()} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium">Экспорт CSV</button><Link href="/bookings/new" className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">+ Новая запись</Link></div></header>
     {publicUrl && <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><h2 className="font-semibold">Ссылка для записи клиентов</h2><p className="mt-1 break-all text-sm text-slate-600">{publicUrl}</p><div className="mt-3 flex gap-2"><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(publicUrl); setCopyState("Скопировано"); } catch { setCopyState("Не удалось скопировать"); } }} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium">Скопировать</button><a href={publicUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white">Открыть страницу записи</a></div>{copyState && <p className="mt-2 text-xs text-slate-600">{copyState}</p>}</section>}
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4 flex items-center justify-between"><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>←</button><h2 className="font-semibold">{month.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}</h2><button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>→</button></div>

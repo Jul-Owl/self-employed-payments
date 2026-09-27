@@ -15,7 +15,7 @@ describe('CatalogService', () => {
     findFirst: jest.fn(),
     update: jest.fn(),
   };
-  const prisma = { catalogItem } as unknown as PrismaService;
+  const prisma = { catalogItem, $transaction: jest.fn() } as unknown as PrismaService;
   const service = new CatalogService(prisma);
   const OWNER_ID = 'owner-id';
   const create = (dto: CreateCatalogItemDto) => service.create(dto, OWNER_ID);
@@ -219,5 +219,19 @@ describe('CatalogService', () => {
         bufferAfterMinutes: 0,
       }),
     });
+  });
+
+  it('exports SERVICE, PRODUCT, inactive state and escaped UTF-8 fields for its owner only', async () => {
+    catalogItem.findMany.mockResolvedValue([{ type: CatalogItemType.SERVICE, title: 'Услуга, "тест"', description: 'строка\nдва', price: 100, category: null, isActive: false, durationMinutes: 60, bufferBeforeMinutes: 0, bufferAfterMinutes: 0, isBookable: true, unit: null, paymentPolicy: null, prepaymentValue: null }]);
+    await expect(service.exportCsv(OWNER_ID)).resolves.toContain('"Услуга, ""тест"""');
+    expect(catalogItem.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: OWNER_ID } }));
+  });
+
+  it('previews UTF-8 valid PRODUCT rows without writes and reports invalid row numbers', () => {
+    const csv = 'type,title,description,price,category,isActive,durationMinutes,bufferBeforeMinutes,bufferAfterMinutes,isBookable,unit,paymentPolicy,prepaymentValue\r\nPRODUCT,Материал,,300,,true,,, ,false,PIECE,,\r\nSERVICE,Плохая,,x,,true,60,0,0,true,,,\r\n';
+    const preview = service.previewCsv(csv.replace(', ,', ',,'), OWNER_ID);
+    expect(preview.validRows).toHaveLength(1);
+    expect(preview.invalidRows[0]).toMatchObject({ rowNumber: 3 });
+    expect(catalogItem.create).not.toHaveBeenCalled();
   });
 });

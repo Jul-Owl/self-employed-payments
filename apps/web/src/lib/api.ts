@@ -207,6 +207,11 @@ export function fetchBookings(params?: {
   return bookingRequest<Booking[]>(`/bookings${suffix}`, { cache: "no-store" });
 }
 
+export function exportBookingsCsv(params?: { dateFrom?: string; dateTo?: string; status?: string }) {
+  const query = new URLSearchParams(Object.entries(params ?? {}).filter(([, value]) => value !== undefined) as [string, string][]);
+  return authenticatedText(`/bookings/export/csv${query.size ? `?${query.toString()}` : ""}`);
+}
+
 export function fetchBooking(id: string) {
   return bookingRequest<Booking>(`/bookings/${id}`, { cache: "no-store" });
 }
@@ -674,6 +679,17 @@ export type LedgerEntry = {
 export function fetchLedgerEntries() {
   return bookingRequest<LedgerEntry[]>("/ledger", { cache: "no-store" });
 }
+
+async function authenticatedText(path: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+  if (!response.ok) throw new ApiRequestError("Не удалось выгрузить CSV", response.status);
+  return response.text();
+}
+
+export type CatalogImportPreview = { validRows: Array<{ rowNumber: number; source: Record<string, string>; errors: string[] }>; invalidRows: Array<{ rowNumber: number; source: Record<string, string>; errors: string[] }> };
+export function exportCatalogCsv() { return authenticatedText("/catalog/export/csv"); }
+export function previewCatalogCsv(csv: string) { return catalogRequest<CatalogImportPreview>("/catalog/import/csv/preview", { method: "POST", body: JSON.stringify({ csv }) }); }
+export function importCatalogCsv(csv: string) { return catalogRequest<{ created: number }>("/catalog/import/csv", { method: "POST", body: JSON.stringify({ csv }) }); }
 
 export function replaceWeeklyWorkingHours(days: Array<WeeklyWorkingHoursPayload & { dayOfWeek: DayOfWeek }>) {
   return catalogRequest<WeeklyWorkingHours[]>("/calendar/weekly", {

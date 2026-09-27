@@ -84,9 +84,10 @@
 
 ### Planned import/export scope
 
-P1: Catalog CSV export, create-only Catalog CSV import with preview/row
-validation, and Booking CSV export by date range/status. P2: client import
-after the Client domain exists and competitor-specific migration importers.
+P1 implemented: Catalog CSV export, create-only Catalog CSV import with
+preview/row validation and all-or-nothing commit, and Booking CSV export by
+date range/status. P2: client import after the Client domain exists and
+competitor-specific migration importers with explicit mapping and reconciliation.
 * category (опционально)
 * createdAt
 * updatedAt

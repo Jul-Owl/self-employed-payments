@@ -239,6 +239,21 @@ calendar remains a controlled operational/admin responsibility; no external
 holiday scraper is part of the MVP. The web workspace has no test runner, so
 date-only and ICS utilities are validated by focused Node checks plus the
 production Next build until a deliberately chosen web test setup is introduced.
+
+### Catalog PRODUCT and CSV data transfer
+
+PRODUCT is an owner catalog item, not independently bookable and not an
+inventory/storefront/order domain. SERVICE remains the scheduling anchor.
+The public Booking API accepts SERVICE only. Owner-created BookingItem PRODUCT
+add-ons keep their existing non-duration snapshot behavior; payment-link item
+composition is not implemented and remains a separate future decision.
+
+P1 CSV is implemented owner-scoped: Catalog export (including inactive SERVICE
+and PRODUCT), create-only Catalog import with full preview/row validation and
+all-or-nothing commit, plus Booking export by date range/status. CSV import
+never matches or updates by title. P2 remains Client transfer after a Client
+domain and explicit competitor-specific importers with mapping/preview/
+reconciliation reports.
 * Calendar остаётся источником истины для рабочего дня и его overrides.
 
 ### Public Online Booking

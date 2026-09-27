@@ -23,6 +23,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { calculateRequiredPaymentAmount } from './booking-payment.helper';
 import { bookingMomentInBusinessTimezone } from './booking-time.helper';
+import { csvStringify } from '../catalog/catalog-csv.helper';
 import {
   BookingIntervals,
   calculateBookingIntervals,
@@ -93,6 +94,23 @@ export class BookingService {
     });
 
     return bookings.map((booking) => this.serializeBooking(booking));
+  }
+
+  async exportCsv(dto: ListBookingsDto, ownerId: string) {
+    const bookings = await this.findAll(dto, ownerId);
+    return csvStringify(
+      ['bookingDate', 'startTime', 'serviceEndTime', 'status', 'customerName', 'customerPhone', 'customerEmail', 'items', 'totalAmount', 'requiredPaymentAmount', 'paidAmount', 'remainingPaymentAmount', 'paymentStatus'],
+      bookings.map((booking) => ({
+        bookingDate: booking.bookingDate,
+        startTime: this.formatMinutes(booking.startMinutes),
+        serviceEndTime: this.formatMinutes(booking.serviceEndMinutes),
+        status: booking.status, customerName: booking.customerName, customerPhone: booking.customerPhone,
+        customerEmail: booking.customerEmail, items: booking.items.map((item) => item.title).join(' + '),
+        totalAmount: booking.totalAmount, requiredPaymentAmount: booking.requiredPaymentAmount,
+        paidAmount: booking.paidAmount, remainingPaymentAmount: booking.remainingPaymentAmount,
+        paymentStatus: booking.paymentStatus,
+      })),
+    );
   }
 
   async getRescheduleAvailability(
@@ -632,6 +650,8 @@ export class BookingService {
 
     return normalized ? normalized : null;
   }
+
+  private formatMinutes(value: number) { return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`; }
 
   private normalizePhone(value: string | undefined) {
     const trimmed = value?.trim();
