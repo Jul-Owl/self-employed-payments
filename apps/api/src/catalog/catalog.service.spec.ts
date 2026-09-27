@@ -111,8 +111,27 @@ describe('CatalogService', () => {
         paymentPolicy,
         prepaymentValue: 100,
       }),
-    ).toThrow('prepaymentValue is only allowed for fixed or percent prepayment');
+    ).toThrow(
+      'prepaymentValue is only allowed for fixed or percent prepayment',
+    );
   });
+
+  it.each([
+    [CatalogItemPaymentPolicy.FIXED_PREPAYMENT, 0],
+    [CatalogItemPaymentPolicy.PERCENT_PREPAYMENT, 0],
+    [CatalogItemPaymentPolicy.PERCENT_PREPAYMENT, 101],
+  ])(
+    'rejects invalid prepayment value %i for %s',
+    (paymentPolicy, prepaymentValue) => {
+      expect(() =>
+        create({
+          ...serviceDto,
+          paymentPolicy,
+          prepaymentValue,
+        }),
+      ).toThrow(BadRequestException);
+    },
+  );
 
   it('archives an item by setting isActive to false', async () => {
     catalogItem.findFirst.mockResolvedValue({
@@ -152,7 +171,6 @@ describe('CatalogService', () => {
       },
       orderBy: { createdAt: 'desc' },
     });
-
   });
 
   it('does not expose a CatalogItem owned by another user', async () => {

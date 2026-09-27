@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
   BookingItemType,
   BookingStatus,
+  CatalogItemPaymentPolicy,
   CatalogItemType,
   CatalogItemUnit,
   Prisma,
@@ -9,6 +10,7 @@ import {
 import { CalendarService } from '../calendar/calendar.service';
 import { NotificationService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TbankPaymentsService } from '../providers/tbank/tbank-payments.service';
 import { BookingService } from './booking.service';
 
 describe('BookingService', () => {
@@ -23,7 +25,10 @@ describe('BookingService', () => {
     update: jest.fn(),
     updateMany: jest.fn(),
   };
-  const transactionClient = { catalogItem, booking };
+  const payment = {
+    create: jest.fn(),
+  };
+  const transactionClient = { catalogItem, booking, payment };
   const prisma = {
     $transaction: jest.fn(),
     booking,
@@ -38,10 +43,14 @@ describe('BookingService', () => {
     createForBookingCancelled: jest.fn(),
     cancelForBookingCompleted: jest.fn(),
   } as unknown as NotificationService;
+  const tbankPaymentsService = {
+    createPayment: jest.fn(),
+  };
   const service = new BookingService(
     prisma,
     calendarService,
     notificationService,
+    tbankPaymentsService as unknown as TbankPaymentsService,
   );
   const OWNER_ID = 'owner-id';
   const create = (dto: Parameters<BookingService['create']>[0]) =>
@@ -70,6 +79,8 @@ describe('BookingService', () => {
     bufferBeforeMinutes: 10,
     bufferAfterMinutes: 15,
     unit: null,
+    paymentPolicy: null,
+    prepaymentValue: null,
   };
   const productCatalogItem = {
     id: 'product-id',
@@ -83,6 +94,8 @@ describe('BookingService', () => {
     bufferBeforeMinutes: 0,
     bufferAfterMinutes: 0,
     unit: CatalogItemUnit.PIECE,
+    paymentPolicy: null,
+    prepaymentValue: null,
   };
 
   const createDto = {
@@ -112,6 +125,14 @@ describe('BookingService', () => {
         bookingDate: new Date('2026-08-10T00:00:00.000Z'),
       }),
     );
+    payment.create.mockResolvedValue({ id: 'payment-id' });
+    tbankPaymentsService.createPayment.mockResolvedValue({
+      provider: 'tbank',
+      externalPaymentId: 'tbank-payment-id',
+      paymentUrl: 'https://pay.test/tbank-payment-id',
+      amount: 1000,
+      status: 'created',
+    });
   });
 
   it('creates a Booking with a SERVICE snapshot and calculated interval', async () => {
@@ -140,7 +161,7 @@ describe('BookingService', () => {
           ],
         },
       }),
-      include: { items: true },
+      include: { items: true, payment: true },
     });
 
     expect(prisma.$transaction).toHaveBeenCalledWith(
@@ -149,6 +170,64 @@ describe('BookingService', () => {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       }),
     );
+  });
+
+  it('keeps no-prepayment bookings payment-free', async () => {
+    await create(createDto);
+
+    expect(booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requiredPaymentAmount: 0,
+          paymentStatus: 'NOT_REQUIRED',
+          paymentId: undefined,
+        }),
+      }),
+    );
+    expect(tbankPaymentsService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('snapshots fixed prepayment and creates a payment for that exact amount', async () => {
+    catalogItem.findMany.mockResolvedValue([
+      {
+        ...serviceCatalogItem,
+        paymentPolicy: CatalogItemPaymentPolicy.FIXED_PREPAYMENT,
+        prepaymentValue: 250,
+      },
+    ]);
+    tbankPaymentsService.createPayment.mockResolvedValue({
+      provider: 'tbank',
+      externalPaymentId: 'tbank-payment-id',
+      paymentUrl: 'https://pay.test/tbank-payment-id',
+      amount: 250,
+      status: 'created',
+    });
+
+    await create(createDto);
+
+    expect(tbankPaymentsService.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 250 }),
+    );
+    expect(booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requiredPaymentAmount: 250,
+          paymentStatus: 'PENDING',
+          paymentId: 'payment-id',
+          items: {
+            create: [
+              expect.objectContaining({
+                paymentPolicy: CatalogItemPaymentPolicy.FIXED_PREPAYMENT,
+                prepaymentValue: 250,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ amount: 250 }),
+    });
   });
 
   it('uses an inclusive date range with status filtering and chronological order', async () => {
@@ -405,7 +484,7 @@ describe('BookingService', () => {
         reservedStartMinutes: 690,
         reservedEndMinutes: 775,
       },
-      include: { items: true },
+      include: { items: true, payment: true },
     });
     expect(catalogItem.findMany).not.toHaveBeenCalled();
   });

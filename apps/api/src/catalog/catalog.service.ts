@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CatalogItemPaymentPolicy,
   CatalogItemType,
@@ -104,7 +108,9 @@ export class CatalogService {
         ownerId: catalogItem.ownerId,
         title: dto.title ?? catalogItem.title,
         description:
-          dto.description === undefined ? catalogItem.description : dto.description,
+          dto.description === undefined
+            ? catalogItem.description
+            : dto.description,
         type: dto.type ?? catalogItem.type,
         isActive: dto.isActive ?? catalogItem.isActive,
         isBookable: dto.isBookable ?? catalogItem.isBookable,
@@ -126,7 +132,8 @@ export class CatalogService {
           dto.prepaymentValue === undefined
             ? catalogItem.prepaymentValue
             : dto.prepaymentValue,
-        category: dto.category === undefined ? catalogItem.category : dto.category,
+        category:
+          dto.category === undefined ? catalogItem.category : dto.category,
       }),
     });
   }
@@ -182,6 +189,23 @@ export class CatalogService {
       throw new BadRequestException(
         'prepaymentValue is required for fixed or percent prepayment',
       );
+    }
+
+    if (needsPrepaymentValue && input.prepaymentValue !== null) {
+      if (input.prepaymentValue <= 0) {
+        throw new BadRequestException(
+          'prepaymentValue must be greater than zero for fixed or percent prepayment',
+        );
+      }
+
+      if (
+        input.paymentPolicy === CatalogItemPaymentPolicy.PERCENT_PREPAYMENT &&
+        input.prepaymentValue > 100
+      ) {
+        throw new BadRequestException(
+          'percent prepaymentValue must not be greater than 100',
+        );
+      }
     }
 
     if (!needsPrepaymentValue && input.prepaymentValue !== null) {

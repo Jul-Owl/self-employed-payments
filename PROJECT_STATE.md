@@ -223,7 +223,10 @@ Calendar остаётся концептуальной областью; отд�
 
 `/book` является временным single-business public route MVP. После появления
 ownership и public profile маршрут эволюционирует в business-specific public
-booking URL. Исполнение предоплаты и платежи пока не подключены.
+booking URL. Для Booking реализована внутренняя связка требования предоплаты с
+существующим `Payment`: требование и политика сохраняются в snapshot, а успешное
+событие существующего payment lifecycle создаёт Transaction, Receipt и Ledger
+entries. Это не является интеграцией Nominal Accounts или FNS/NPD.
 
 ### Calendar / Booking Management UI
 
@@ -234,7 +237,10 @@ booking URL. Исполнение предоплаты и платежи пок�
 * перенос использует BookingItem snapshots, а не текущие CatalogItem;
 * `GET /bookings` поддерживает date range для календарных представлений.
 
-Payment lifecycle по-прежнему не связан с Booking.
+Booking с ненулевым требованием создаёт один связанный `Payment`; status оплаты
+хранится отдельно от BookingStatus. Фактическое движение денег остаётся в
+Transaction и Ledger, а response Booking показывает `requiredPaymentAmount`,
+`paidAmount` и `remainingPaymentAmount` как производные значения.
 
 ## Связи
 
@@ -363,8 +369,9 @@ Accounts не регистрируют НПД/ФНС-чеки, а продукт
 
 ## Следующий технический этап
 
-Notifications / Pilot UX hardening. Денежный следующий этап для Booking —
-T-Bank и связь Booking ↔ Payment после получения integration requirements.
+Notifications / Pilot UX hardening. Следующий денежный этап для Booking —
+реальная банковская интеграция после получения integration requirements; текущая
+внутренняя связка Booking ↔ Payment не реализует T-Bank Nominal Accounts.
 
 **Документация:** [docs/architecture/CATALOG_ARCHITECTURE.md](./docs/architecture/CATALOG_ARCHITECTURE.md)
 

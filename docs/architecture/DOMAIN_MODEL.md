@@ -36,7 +36,8 @@
 
 `User` — владелец одного бизнеса MVP. Прямой `ownerId` имеют CatalogItem,
 WeeklyWorkingHours, CalendarDateOverride, Booking, PaymentLink и Transaction.
-BookingItem наследует owner через Booking; Payment — через PaymentLink;
+BookingItem наследует owner через Booking; Payment — через PaymentLink или
+связанный Booking;
 Receipt и LedgerEntry — через Transaction. OfficialCalendarDay и WebhookEvent
 остаются system-scoped. `publicSlug` выбирает владельца только для публичного
 `/book/[slug]` flow.
@@ -118,7 +119,8 @@ CalendarDateOverride определяют рабочий интервал кон
 приоритетом ручного правила над государственным календарём и недельным
 графиком.
 
-**Отложено:** Booking и предполагаемая модель BookingItem.
+**Реализовано:** Booking и BookingItem snapshots, включая отдельное требование
+предоплаты и связь с внутренним Payment при ненулевой требуемой сумме.
 
 **Подробности:** [ROADMAP.md](../../ROADMAP.md),
 [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md).
@@ -310,15 +312,19 @@ CatalogItem
 ```text
 CatalogItem
 → Booking
-→ PaymentLink или предоплата
+→ BookingItem snapshot и requiredPaymentAmount
+→ Payment (только при ненулевом требовании)
 → Transaction
 → Ledger
 → Receipt
 → дальнейший статус выполнения визита
 ```
 
-Это концептуальная схема. Порядок создания Booking и PaymentLink в сценарии
-предоплаты не утверждён и требует отдельного проектирования.
+Booking сохраняет `requiredPaymentAmount` и отдельный payment status; политика
+и значение предоплаты сохраняются в BookingItem snapshot. Один Payment связан с
+Booking только при ненулевом требовании. Успешный payment lifecycle создаёт
+Transaction, Receipt и Ledger entries; фактические суммы не дублируются в
+Booking. Это внутренняя MVP-связка, не T-Bank Nominal Accounts и не FNS/NPD.
 
 ## Границы ответственности
 
@@ -357,8 +363,8 @@ CatalogItem
 | Integration | WebhookEvent | IMPLEMENTED | Prisma schema и [ROADMAP.md](../../ROADMAP.md) |
 | Catalog | CatalogItem | IMPLEMENTED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
 | Calendar and Booking | WeeklyWorkingHours / OfficialCalendarDay / CalendarDateOverride | IMPLEMENTED | [PROJECT_STATE.md](../../PROJECT_STATE.md) |
-| Calendar and Booking | Booking | PLANNED | [ROADMAP.md](../../ROADMAP.md) |
-| Calendar and Booking | BookingItem | PLANNED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
+| Calendar and Booking | Booking | IMPLEMENTED | [PROJECT_STATE.md](../../PROJECT_STATE.md) |
+| Calendar and Booking | BookingItem | IMPLEMENTED | [CATALOG_ARCHITECTURE.md](./CATALOG_ARCHITECTURE.md) |
 | Users and Ownership | User | DEFERRED | [ROADMAP.md](../../ROADMAP.md) |
 | Monetization | Rules assignment | PLANNED | [ROADMAP.md](../../ROADMAP.md) |
 
@@ -366,7 +372,6 @@ CatalogItem
 
 - Окончательная модель строк PaymentLink.
 - Окончательная модель состава Booking.
-- Порядок Booking и PaymentLink в сценарии предоплаты.
 - Общая или отдельная модель строк для продажи и бронирования.
 - Момент добавления User и ownerId.
 - Техническая модель двух вариантов монетизации.

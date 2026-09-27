@@ -320,7 +320,9 @@ snapshot. Предполагаемая модель состава Booking и н
 
 ### PERCENT_PREPAYMENT
 
-Процент от итоговой суммы (размер % в поле `prepaymentValue`).
+Процент от суммы соответствующей строки SERVICE (размер % в поле
+`prepaymentValue`). Для booking с несколькими SERVICE требование складывается
+по строкам, а не пересчитывается из изменяемого CatalogItem.
 
 ### FULL_PREPAYMENT
 
@@ -330,8 +332,14 @@ snapshot. Предполагаемая модель состава Booking и н
 
 - paymentPolicy может быть не задана (= NO_PREPAYMENT).
 - prepaymentValue используется только если paymentPolicy требует суммы/процента.
-- При создании Booking показывается размер предоплаты.
-- Предоплата может быть сразу или запрос на оплату.
+- Для FIXED_PREPAYMENT значение — целое положительное число и не больше суммы
+  строки; для PERCENT_PREPAYMENT — целое число от 1 до 100.
+- При создании Booking policy и prepaymentValue сохраняются в BookingItem
+  snapshot. Требование бронирования — сумма требований строк: fixed ограничен
+  суммой строки, percent округляется `Math.round`, full равен сумме строки.
+- При ненулевом требовании Booking создаёт один связанный внутренний Payment;
+  успешная обработка платежа создаёт обычные Transaction/Receipt/Ledger entries.
+  Это не реализация Nominal Accounts или регистрации FNS/NPD.
 
 ---
 
@@ -486,10 +494,13 @@ isActive = true   →  позиция активна
    CatalogItem. Поддержка нескольких позиций является продуктовым
    требованием, а модель её реализации ещё требует проектирования.
 
-3. **Booking и предполагаемая модель BookingItem не реализуются** —
-   окончательная структура будет определена на этапе Calendar and Booking.
+3. **Booking и BookingItem реализованы** — их snapshots фиксируют коммерчески
+   значимые значения CatalogItem на момент создания записи.
 
-4. **Предоплата не реализуется** — paymentPolicy и prepaymentValue используются для будущей функциональности.
+4. **Booking prepayment requirement реализован** — paymentPolicy и
+   prepaymentValue snapshot-ируются в BookingItem и определяют один внутренний
+   Payment при ненулевом требовании. Реальный банковский payment provider и
+   FNS/NPD остаются отдельными будущими работами.
 
 5. **Категории опциональны** — не применяются в интерфейсе.
 

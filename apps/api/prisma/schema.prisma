@@ -99,6 +99,13 @@ enum BookingItemType {
   PRODUCT
 }
 
+enum BookingPaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PAID
+  FAILED
+}
+
 enum NotificationType {
   BOOKING_CONFIRMATION
   BOOKING_REMINDER
@@ -216,27 +223,32 @@ model CatalogItem {
 }
 
 model Booking {
-  id                   String        @id @default(cuid())
-  ownerId              String
-  bookingDate          DateTime      @db.Date
-  startMinutes         Int
-  serviceEndMinutes    Int
-  reservedStartMinutes Int
-  reservedEndMinutes   Int
-  status               BookingStatus @default(CONFIRMED)
-  totalAmount          Int
-  customerName         String
-  customerPhone        String?
-  customerEmail        String?
-  comment              String?
-  completedAt          DateTime?
-  cancelledAt          DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id                    String               @id @default(cuid())
+  ownerId               String
+  bookingDate           DateTime             @db.Date
+  startMinutes          Int
+  serviceEndMinutes     Int
+  reservedStartMinutes  Int
+  reservedEndMinutes    Int
+  status                BookingStatus        @default(CONFIRMED)
+  totalAmount           Int
+  requiredPaymentAmount Int                  @default(0)
+  paymentStatus         BookingPaymentStatus @default(NOT_REQUIRED)
+  customerName          String
+  customerPhone         String?
+  customerEmail         String?
+  comment               String?
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 
   owner User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   items BookingItem[]
   notifications Notification[]
+
+  paymentId String?  @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id])
 
   @@index([ownerId])
   @@index([status])
@@ -282,6 +294,8 @@ model BookingItem {
   durationMinutes     Int?
   bufferBeforeMinutes Int?
   bufferAfterMinutes  Int?
+  paymentPolicy       CatalogItemPaymentPolicy?
+  prepaymentValue     Int?
   createdAt           DateTime        @default(now())
 
   booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -316,8 +330,10 @@ model Payment {
   amount            Int
   status            PaymentStatus @default(CREATED)
 
-  paymentLinkId     String
-  paymentLink       PaymentLink   @relation(fields: [paymentLinkId], references: [id])
+  paymentLinkId     String?
+  paymentLink       PaymentLink?  @relation(fields: [paymentLinkId], references: [id])
+
+  booking           Booking?
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt

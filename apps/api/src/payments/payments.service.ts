@@ -22,12 +22,10 @@ export class PaymentsService {
       throw new NotFoundException('Payment link not found');
     }
 
-    const providerPayment =
-      await this.tbankPaymentsService.createPayment({
-        paymentLinkId: paymentLink.id,
-        amount: paymentLink.amount,
-        description: paymentLink.title,
-      });
+    const providerPayment = await this.tbankPaymentsService.createPayment({
+      amount: paymentLink.amount,
+      description: paymentLink.title,
+    });
 
     return this.prisma.payment.create({
       data: {

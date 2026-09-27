@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  BookingPaymentStatus,
   PaymentStatus,
   Prisma,
   ReceiptStatus,
@@ -8,6 +9,14 @@ import {
 } from '@prisma/client';
 import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+type PaymentContext = {
+  ownerId: string;
+  paymentLinkId: string | null;
+  bookingId: string | null;
+  paymentId: string | null;
+  expectedAmount: number | null;
+};
 
 @Injectable()
 export class WebhooksService {
@@ -60,13 +69,13 @@ export class WebhooksService {
           },
         });
 
-        const paymentLink = await this.findPaymentLink(
+        const paymentContext = await this.findPaymentContext(
           tx,
           paymentLinkId,
           externalPaymentId,
         );
 
-        if (!paymentLink) {
+        if (!paymentContext) {
           const failedWebhookEvent = await tx.webhookEvent.update({
             where: { id: webhookEvent.id },
             data: {
@@ -81,7 +90,7 @@ export class WebhooksService {
 
         const transaction = await tx.transaction.create({
           data: {
-            ownerId: paymentLink.ownerId,
+            ownerId: paymentContext.ownerId,
             title: payload.title ?? 'Неуспешная оплата',
             client: payload.client ?? 'Клиент из webhook',
             grossAmount: amount,
@@ -92,18 +101,40 @@ export class WebhooksService {
             status: TransactionStatus.FAILED,
             externalPaymentId,
             externalStatus: eventType,
-            paymentLinkId: paymentLink.id,
+            paymentLinkId: paymentContext.paymentLinkId,
           },
         });
 
-        await tx.payment.updateMany({
-          where: {
-            externalPaymentId,
-          },
-          data: {
-            status: PaymentStatus.FAILED,
-          },
-        });
+        let bookingPaymentFailed = false;
+
+        if (paymentContext.paymentId) {
+          const paymentUpdate = await tx.payment.updateMany({
+            where: {
+              id: paymentContext.paymentId,
+              status: {
+                in: [PaymentStatus.CREATED, PaymentStatus.PENDING],
+              },
+            },
+            data: { status: PaymentStatus.FAILED },
+          });
+
+          bookingPaymentFailed = paymentUpdate.count > 0;
+        } else {
+          await tx.payment.updateMany({
+            where: { externalPaymentId },
+            data: { status: PaymentStatus.FAILED },
+          });
+        }
+
+        if (paymentContext.bookingId && bookingPaymentFailed) {
+          await tx.booking.updateMany({
+            where: {
+              id: paymentContext.bookingId,
+              paymentId: paymentContext.paymentId ?? undefined,
+            },
+            data: { paymentStatus: BookingPaymentStatus.FAILED },
+          });
+        }
 
         const updatedWebhookEvent = await tx.webhookEvent.update({
           where: {
@@ -162,13 +193,13 @@ export class WebhooksService {
         },
       });
 
-      const paymentLink = await this.findPaymentLink(
+      const paymentContext = await this.findPaymentContext(
         tx,
         paymentLinkId,
         externalPaymentId,
       );
 
-      if (!paymentLink) {
+      if (!paymentContext) {
         const failedWebhookEvent = await tx.webhookEvent.update({
           where: { id: webhookEvent.id },
           data: {
@@ -178,12 +209,64 @@ export class WebhooksService {
           },
         });
 
-        return { webhookEvent: failedWebhookEvent, transaction: null, receipt: null };
+        return {
+          webhookEvent: failedWebhookEvent,
+          transaction: null,
+          receipt: null,
+        };
+      }
+
+      if (
+        paymentContext.bookingId &&
+        paymentContext.expectedAmount !== grossAmount
+      ) {
+        const failedWebhookEvent = await tx.webhookEvent.update({
+          where: { id: webhookEvent.id },
+          data: {
+            status: WebhookEventStatus.FAILED,
+            errorMessage:
+              'Booking payment amount does not match the required amount',
+            processedAt: new Date(),
+          },
+        });
+
+        return {
+          webhookEvent: failedWebhookEvent,
+          transaction: null,
+          receipt: null,
+        };
+      }
+
+      if (paymentContext.paymentId) {
+        const claimedPayment = await tx.payment.updateMany({
+          where: {
+            id: paymentContext.paymentId,
+            status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
+          },
+          data: { status: PaymentStatus.SUCCEEDED },
+        });
+
+        if (claimedPayment.count === 0) {
+          const updatedWebhookEvent = await tx.webhookEvent.update({
+            where: { id: webhookEvent.id },
+            data: {
+              status: WebhookEventStatus.PROCESSED,
+              processedAt: new Date(),
+            },
+          });
+
+          return {
+            duplicated: true,
+            webhookEvent: updatedWebhookEvent,
+            transaction: null,
+            receipt: null,
+          };
+        }
       }
 
       const transaction = await tx.transaction.create({
         data: {
-          ownerId: paymentLink.ownerId,
+          ownerId: paymentContext.ownerId,
           title: payload.title ?? 'Оплата по внешнему API',
           client: payload.client ?? 'Клиент из webhook',
           grossAmount,
@@ -194,18 +277,26 @@ export class WebhooksService {
           status: TransactionStatus.PROCESSED,
           externalPaymentId,
           externalStatus: eventType,
-          paymentLinkId: paymentLink.id,
+          paymentLinkId: paymentContext.paymentLinkId,
         },
       });
 
-      await tx.payment.updateMany({
-        where: {
-          externalPaymentId,
-        },
-        data: {
-          status: PaymentStatus.SUCCEEDED,
-        },
-      });
+      if (!paymentContext.paymentId) {
+        await tx.payment.updateMany({
+          where: { externalPaymentId },
+          data: { status: PaymentStatus.SUCCEEDED },
+        });
+      }
+
+      if (paymentContext.bookingId) {
+        await tx.booking.updateMany({
+          where: {
+            id: paymentContext.bookingId,
+            paymentId: paymentContext.paymentId ?? undefined,
+          },
+          data: { paymentStatus: BookingPaymentStatus.PAID },
+        });
+      }
 
       const receipt = await tx.receipt.create({
         data: {
@@ -260,31 +351,66 @@ export class WebhooksService {
     });
   }
 
-  private async findPaymentLink(
+  private async findPaymentContext(
     tx: Prisma.TransactionClient,
     paymentLinkId: string | null,
     externalPaymentId: string | null,
   ) {
-    if (paymentLinkId) {
-      return tx.paymentLink.findUnique({
-        where: { id: paymentLinkId },
-        select: { id: true, ownerId: true },
+    if (externalPaymentId) {
+      const payment = await tx.payment.findUnique({
+        where: { externalPaymentId },
+        select: {
+          id: true,
+          amount: true,
+          paymentLink: { select: { id: true, ownerId: true } },
+          booking: {
+            select: {
+              id: true,
+              ownerId: true,
+              requiredPaymentAmount: true,
+            },
+          },
+        },
       });
+
+      if (payment?.booking) {
+        return {
+          ownerId: payment.booking.ownerId,
+          paymentLinkId: null,
+          bookingId: payment.booking.id,
+          paymentId: payment.id,
+          expectedAmount: payment.booking.requiredPaymentAmount,
+        } satisfies PaymentContext;
+      }
+
+      if (payment?.paymentLink) {
+        return {
+          ownerId: payment.paymentLink.ownerId,
+          paymentLinkId: payment.paymentLink.id,
+          bookingId: null,
+          paymentId: payment.id,
+          expectedAmount: payment.amount,
+        } satisfies PaymentContext;
+      }
     }
 
-    if (!externalPaymentId) {
+    if (!paymentLinkId) {
       return null;
     }
 
-    const payment = await tx.payment.findUnique({
-      where: { externalPaymentId },
-      select: {
-        paymentLink: {
-          select: { id: true, ownerId: true },
-        },
-      },
+    const paymentLink = await tx.paymentLink.findUnique({
+      where: { id: paymentLinkId },
+      select: { id: true, ownerId: true },
     });
 
-    return payment?.paymentLink ?? null;
+    return paymentLink
+      ? {
+          ownerId: paymentLink.ownerId,
+          paymentLinkId: paymentLink.id,
+          bookingId: null,
+          paymentId: null,
+          expectedAmount: null,
+        }
+      : null;
   }
 }

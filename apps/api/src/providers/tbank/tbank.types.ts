@@ -1,5 +1,4 @@
 export type CreateTbankPaymentParams = {
-  paymentLinkId: string;
   amount: number;
   description: string;
 };

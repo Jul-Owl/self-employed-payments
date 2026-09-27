@@ -6,18 +6,22 @@ import {
 } from '@nestjs/common';
 import {
   BookingItemType,
+  BookingPaymentStatus,
   BookingStatus,
   CatalogItem,
   CatalogItemType,
+  PaymentStatus,
   Prisma,
 } from '@prisma/client';
 import { CalendarService } from '../calendar/calendar.service';
 import { NotificationService } from '../notifications/notifications.service';
+import { TbankPaymentsService } from '../providers/tbank/tbank-payments.service';
 import {
   formatCalendarDate,
   parseCalendarDate,
 } from '../calendar/calendar-date.helper';
 import { PrismaService } from '../prisma/prisma.service';
+import { calculateRequiredPaymentAmount } from './booking-payment.helper';
 import {
   BookingIntervals,
   calculateBookingIntervals,
@@ -44,6 +48,8 @@ interface BookingItemSnapshot {
   durationMinutes: number | null;
   bufferBeforeMinutes: number | null;
   bufferAfterMinutes: number | null;
+  paymentPolicy: CatalogItem['paymentPolicy'];
+  prepaymentValue: number | null;
 }
 
 @Injectable()
@@ -52,6 +58,7 @@ export class BookingService {
     private readonly prisma: PrismaService,
     private readonly calendarService: CalendarService,
     private readonly notificationService: NotificationService,
+    private readonly tbankPaymentsService: TbankPaymentsService,
   ) {}
 
   async findAll(dto: ListBookingsDto, ownerId: string) {
@@ -80,7 +87,7 @@ export class BookingService {
             : undefined,
         status: dto.status,
       },
-      include: { items: true },
+      include: { items: true, payment: true },
       orderBy: [{ bookingDate: 'asc' }, { startMinutes: 'asc' }],
     });
 
@@ -94,7 +101,7 @@ export class BookingService {
   ) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, ownerId },
-      include: { items: true },
+      include: { items: true, payment: true },
     });
 
     if (!booking) {
@@ -165,7 +172,7 @@ export class BookingService {
   async findOne(id: string, ownerId: string) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, ownerId },
-      include: { items: true },
+      include: { items: true, payment: true },
     });
 
     if (!booking) {
@@ -177,11 +184,17 @@ export class BookingService {
 
   async create(dto: CreateBookingDto, ownerId: string) {
     this.validateCustomerContacts(dto);
+    let providerPayment: Prisma.PaymentCreateWithoutBookingInput | undefined;
 
     const booking = await this.withSerializableRetry(async (tx) => {
       const bookingDate = parseCalendarDate(dto.bookingDate);
       const snapshots = await this.createSnapshots(tx, dto.items, ownerId);
       const intervals = calculateBookingIntervals(dto.startMinutes, snapshots);
+      const totalAmount = snapshots.reduce(
+        (total, item) => total + item.lineTotalAmount,
+        0,
+      );
+      const requiredPaymentAmount = calculateRequiredPaymentAmount(snapshots);
 
       await this.validateCalendarInterval(
         tx,
@@ -198,16 +211,30 @@ export class BookingService {
         intervals.reservedEndMinutes,
       );
 
+      const bookingPayment =
+        requiredPaymentAmount > 0
+          ? await tx.payment.create({
+              data:
+                providerPayment ??
+                (providerPayment = await this.createBookingProviderPayment(
+                  requiredPaymentAmount,
+                  dto.customerName,
+                )),
+            })
+          : null;
+
       const createdBooking = await tx.booking.create({
         data: {
           ownerId,
           bookingDate,
           startMinutes: dto.startMinutes,
           ...intervals,
-          totalAmount: snapshots.reduce(
-            (total, item) => total + item.lineTotalAmount,
-            0,
-          ),
+          totalAmount,
+          requiredPaymentAmount,
+          paymentStatus:
+            requiredPaymentAmount > 0
+              ? BookingPaymentStatus.PENDING
+              : BookingPaymentStatus.NOT_REQUIRED,
           customerName: dto.customerName.trim(),
           customerPhone: this.normalizeOptionalText(dto.customerPhone),
           customerEmail: this.normalizeOptionalText(dto.customerEmail),
@@ -215,8 +242,9 @@ export class BookingService {
           items: {
             create: snapshots,
           },
+          paymentId: bookingPayment?.id,
         },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
 
       await this.notificationService.createForBookingCreated(
@@ -234,7 +262,7 @@ export class BookingService {
     const booking = await this.withSerializableRetry(async (tx) => {
       const booking = await tx.booking.findFirst({
         where: { id, ownerId },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
 
       if (!booking) {
@@ -276,7 +304,7 @@ export class BookingService {
           startMinutes: dto.startMinutes,
           ...intervals,
         },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
 
       await this.notificationService.createForBookingRescheduled(
@@ -343,7 +371,7 @@ export class BookingService {
 
       const updatedBooking = await tx.booking.findFirst({
         where: { id, ownerId },
-        include: { items: true },
+        include: { items: true, payment: true },
       });
 
       if (!updatedBooking) {
@@ -457,6 +485,8 @@ export class BookingService {
         durationMinutes,
         bufferBeforeMinutes: catalogItem.bufferBeforeMinutes,
         bufferAfterMinutes: catalogItem.bufferAfterMinutes,
+        paymentPolicy: catalogItem.paymentPolicy,
+        prepaymentValue: catalogItem.prepaymentValue,
       };
     }
 
@@ -479,6 +509,8 @@ export class BookingService {
       durationMinutes: null,
       bufferBeforeMinutes: null,
       bufferAfterMinutes: null,
+      paymentPolicy: null,
+      prepaymentValue: null,
     };
   }
 
@@ -579,6 +611,30 @@ export class BookingService {
     );
   }
 
+  private async createBookingProviderPayment(
+    amount: number,
+    customerName: string,
+  ): Promise<Prisma.PaymentCreateWithoutBookingInput> {
+    const providerPayment = await this.tbankPaymentsService.createPayment({
+      amount,
+      description: `Booking prepayment for ${customerName.trim()}`,
+    });
+
+    if (providerPayment.amount !== amount || providerPayment.amount <= 0) {
+      throw new BadRequestException(
+        'Payment provider returned an invalid amount',
+      );
+    }
+
+    return {
+      provider: providerPayment.provider,
+      externalPaymentId: providerPayment.externalPaymentId,
+      paymentUrl: providerPayment.paymentUrl,
+      amount: providerPayment.amount,
+      status: PaymentStatus.CREATED,
+    };
+  }
+
   private isSerializationConflict(error: unknown) {
     return (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -586,10 +642,26 @@ export class BookingService {
     );
   }
 
-  private serializeBooking<T extends { bookingDate: Date }>(booking: T) {
+  private serializeBooking<
+    T extends {
+      bookingDate: Date;
+      requiredPaymentAmount?: number;
+      payment?: { amount: number; status: PaymentStatus } | null;
+    },
+  >(booking: T) {
+    const paidAmount =
+      booking.payment?.status === PaymentStatus.SUCCEEDED
+        ? booking.payment.amount
+        : 0;
+
     return {
       ...booking,
       bookingDate: formatCalendarDate(booking.bookingDate),
+      paidAmount,
+      remainingPaymentAmount: Math.max(
+        (booking.requiredPaymentAmount ?? 0) - paidAmount,
+        0,
+      ),
     };
   }
 }

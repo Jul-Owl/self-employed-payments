@@ -57,7 +57,11 @@ state. They are created by the Booking lifecycle and cannot be created from
 the frontend.
 
 Owner endpoints требуют session-cookie. Публичная страница использует
-`/book/:slug`; платежи и исполнение предоплаты для Booking не подключены.
+`/book/:slug`. При создании Booking API возвращает snapshot-based
+`requiredPaymentAmount`, отдельный payment status, `paidAmount` и
+`remainingPaymentAmount`; при ненулевом требовании создаётся связанный Payment.
+Это внутренний payment lifecycle, а не T-Bank Nominal Accounts или FNS/NPD
+интеграция.
 
 ---
 
