@@ -1,0 +1,12 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "3001:3001"
+    environment:
+      APP_ENV: ${APP_ENV}
+      NODE_ENV: ${NODE_ENV}
+      WEB_URL: ${WEB_URL}
+      DATABASE_URL: ${DATABASE_URL}
