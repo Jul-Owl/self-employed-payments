@@ -7,23 +7,16 @@ ENV PATH="$PNPM_HOME:$PATH"
 
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
-FROM base AS dependencies
+FROM base AS builder
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN pnpm install --frozen-lockfile --filter web...
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter web...
 
-FROM base AS builder
-
-WORKDIR /app
-
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=dependencies /app/apps/web/node_modules ./apps/web/node_modules
-
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web ./apps/web
 
 ARG APP_ENV
